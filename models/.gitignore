@@ -1,0 +1,6 @@
+# Ignore all weight files
+*.pt
+*.tflite
+*.onnx
+# Keep directory
+!.gitignore

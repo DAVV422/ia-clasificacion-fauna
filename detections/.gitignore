@@ -1,0 +1,4 @@
+# Ignore all saved cropped images
+*
+# Keep directory
+!.gitignore

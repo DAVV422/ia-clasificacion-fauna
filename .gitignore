@@ -1,0 +1,4 @@
+venv/
+temp/
+detecctions/
+*/__pycache__/
