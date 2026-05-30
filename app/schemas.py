@@ -1,14 +1,21 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Dict, List, Optional, Any
 
 class DetectionDetail(BaseModel):
-    box: List[float] = Field(..., description="Bounding box in normalized coordinates [ymin, xmin, ymax, xmax]")
-    class_name: str = Field(..., description="The detected category name (animal, person, vehicle)")
-    confidence: float = Field(..., description="Inference confidence score (0.0 to 1.0)")
-    species: Optional[str] = Field(None, description="The classified animal species name (e.g. Panthera onca)")
-    species_confidence: Optional[float] = Field(None, description="Species classification confidence score")
-    crop_path: Optional[str] = Field(None, description="Local relative path where the crop is saved")
-    crop_url: Optional[str] = Field(None, description="Static HTTP URL to access the crop image")
+    species: str        # Nombre de la especie principal (ej: "panthera;onca;jaguar")
+    confidence: float   # Confianza de SpeciesNet redondeada (ej: 0.96)
+    crop_url: Optional[str] = None  # 🔁 Volvió aquí
+
+class TimestampDetection(BaseModel):
+    timestamp_seconds: float
+    detections: List[DetectionDetail]
+# class DetectionDetail(BaseModel):
+#     box: List[float] = Field(..., description="Bounding box in normalized coordinates [ymin, xmin, ymax, xmax]")
+#     class_name: str = Field(..., description="The detected category name (animal, person, vehicle)")
+#     confidence: float = Field(..., description="Inference confidence score (0.0 to 1.0)")
+#     species: Optional[List[Dict[str, Any]]] = Field(None, description="The classified animal species name (e.g. Panthera onca)")
+#     crop_path: Optional[str] = Field(None, description="Local relative path where the crop is saved")
+#     crop_url: Optional[str] = Field(None, description="Static HTTP URL to access the crop image")
 
 
 class TimestampDetection(BaseModel):

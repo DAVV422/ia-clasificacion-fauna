@@ -2,6 +2,10 @@ import logging
 from pathlib import Path
 from typing import List, Set
 import cv2
+import re
+import unicodedata
+import uuid
+from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -129,7 +133,7 @@ async def detect_wildlife(
             if frame is None:
                 raise HTTPException(status_code=400, detail="Could not decode the uploaded image.")
 
-            detections = detector.detect_and_crop(frame, timestamp=0.0)
+            detections = detector.detect_and_crop(frame, filename, timestamp=0.0)
             
             if detections:
                 results.append(TimestampDetection(
@@ -140,6 +144,48 @@ async def detect_wildlife(
                 categories_found.update(d["class_name"] for d in detections)
 
         else:
+            # # --- PROCESS VIDEO ---
+            # cap = cv2.VideoCapture(str(temp_path))
+            # if not cap.isOpened():
+            #     raise HTTPException(status_code=400, detail="Could not open the uploaded video.")
+
+            # # Get video specs
+            # fps = cap.get(cv2.CAP_PROP_FPS)
+            # frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            # # Prevent DivisionByZero if metadata is corrupt
+            # if fps <= 0:
+            #     fps = 30.0
+            
+            # duration_seconds = round(frame_count / fps, 2)
+            # logger.info(f"Video specs: {duration_seconds}s duration, {fps} FPS, {frame_count} frames.")
+
+            # # Calculate frame sampling step
+            # # E.g., if video is 30 FPS and we want 2 FPS sampling, we take a frame every 15 frames.
+            # step = int(round(fps / VIDEO_FPS_SAMPLING))
+            # step = max(1, step)  # Enforce at least 1
+
+            # frame_idx = 0
+            # while cap.isOpened():
+            #     ret, frame = cap.read()
+            #     if not ret:
+            #         break
+
+            #     if frame_idx % step == 0:
+            #         timestamp = round(frame_idx / fps, 2)
+            #         detections = detector.detect_and_crop(frame, filename, timestamp=timestamp)
+                    
+            #         if detections:
+            #             results.append(TimestampDetection(
+            #                 timestamp_seconds=timestamp,
+            #                 detections=[DetectionDetail(**d) for d in detections]
+            #             ))
+            #             total_crops += len(detections)
+            #             categories_found.update(d["class_name"] for d in detections)
+
+            #     frame_idx += 1
+
+            # cap.release()
             # --- PROCESS VIDEO ---
             cap = cv2.VideoCapture(str(temp_path))
             if not cap.isOpened():
@@ -156,31 +202,120 @@ async def detect_wildlife(
             duration_seconds = round(frame_count / fps, 2)
             logger.info(f"Video specs: {duration_seconds}s duration, {fps} FPS, {frame_count} frames.")
 
-            # Calculate frame sampling step
-            # E.g., if video is 30 FPS and we want 2 FPS sampling, we take a frame every 15 frames.
-            step = int(round(fps / VIDEO_FPS_SAMPLING))
-            step = max(1, step)  # Enforce at least 1
+            # =========================================================================
+            # 🛠️ NUEVA LÓGICA DE MUESTREO: Mínimo 1, Máximo 3 capturas distribuidas uniformemente
+            # =========================================================================
+            MAX_CAPTURES = 3 
+            # Aseguramos que el límite configurado esté entre 1 y 3 de manera segura
+            total_captures_to_make = max(1, min(3, MAX_CAPTURES)) 
+            
+            # Calculamos los índices exactos de los frames que vamos a extraer
+            frames_to_extract = []
+            if frame_count > 0:
+                interval = frame_count / (total_captures_to_make + 1)
+                for i in range(1, total_captures_to_make + 1):
+                    frames_to_extract.append(int(interval * i))
+            else:
+                # Si por algún motivo el frame_count viene en 0, procesamos al menos el primer frame
+                frames_to_extract = [0]
 
-            frame_idx = 0
-            while cap.isOpened():
+            # Inicializamos la métrica solicitada para contar animales en simultáneo
+            max_animals_simultaneous = 0
+
+            # Generamos el nombre de contenedor aislado único para este video (Tu requerimiento previo)
+            # from pathlib import Path
+            # import uuid
+            # base_name = Path(filename).stem
+            # unique_run_id = uuid.uuid4().hex[:8]
+            # video_execution_folder = f"{base_name}_{unique_run_id}"            
+
+            # 1. Obtener el nombre base original
+            base_name_raw = Path(filename).stem
+
+            # 2. Normalizar para eliminar acentos (Ej: "jaguár" -> "jaguar", "niño" -> "nino")
+            base_name_clean = unicodedata.normalize('NFKD', base_name_raw).encode('ASCII', 'ignore').decode('ASCII')
+
+            # 3. Reemplazar espacios por guiones bajos (_)
+            base_name_clean = base_name_clean.replace(" ", "_")
+
+            # 4. Remover cualquier caracter que NO sea una letra, número, guion medio o guion bajo
+            base_name_clean = re.sub(r'[^a-zA-Z0-9_ -]', '', base_name_clean)
+
+            # 5. Opcional: Convertir todo a minúsculas para estandarizar las rutas
+            base_name_clean = base_name_clean.lower()
+
+            # 6. Generar el ID único y la carpeta final
+            unique_run_id = uuid.uuid4().hex[:8]
+            video_execution_folder = f"{base_name_clean}_{unique_run_id}"
+            # =========================================================================
+
+            # Iteramos directo sobre los frames seleccionados
+            for frame_idx in frames_to_extract:
+                # Posicionamos el puntero de OpenCV directamente en el frame deseado (Evita el lag del while)
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
                 ret, frame = cap.read()
                 if not ret:
-                    break
+                    continue
 
-                if frame_idx % step == 0:
-                    timestamp = round(frame_idx / fps, 2)
-                    detections = detector.detect_and_crop(frame, timestamp=timestamp)
-                    
-                    if detections:
-                        results.append(TimestampDetection(
-                            timestamp_seconds=timestamp,
-                            detections=[DetectionDetail(**d) for d in detections]
+                timestamp = round(frame_idx / fps, 2)
+                
+                # Pasamos el identificador del video único a tu función modificada
+                detections = detector.detect_and_crop(frame, video_execution_folder, timestamp=timestamp)
+                
+                # if detections:
+                #     # 📊 CALCULAR EL MÁXIMO DE ANIMALES EN SIMULTÁNEO EN ESTE FRAME
+                #     animals_in_frame = sum(1 for d in detections if d["class_name"] == "animal")
+                #     if animals_in_frame > max_animals_simultaneous:
+                #         max_animals_simultaneous = animals_in_frame
+
+                #     # Mapeo y registro en los esquemas de Pydantic de salida
+                #     results.append(TimestampDetection(
+                #         timestamp_seconds=timestamp,
+                #         detections=[DetectionDetail(**d) for d in detections]
+                #     ))
+                #     total_crops += len(detections)
+                #     categories_found.update(d["class_name"] for d in detections)
+
+                if detections:
+                # 📊 CALCULAR EL MÁXIMO DE ANIMALES EN SIMULTÁNEO EN ESTE FRAME
+                    animals_in_frame = sum(1 for d in detections if d["class_name"] == "animal")
+                    if animals_in_frame > max_animals_simultaneous:
+                        max_animals_simultaneous = animals_in_frame
+
+                    # 🛠️ APLANAR Y ASIGNAR EL CROP URL A CADA DETECTION DETAIL
+                    flattened_detections = []
+
+                    for d in detections:
+                        # Obtenemos la lista de especies devueltas por la función
+                        species_list = d.get("species", [])
+                        
+                        if species_list:
+                            # La primera es la que tiene mayor confianza
+                            top_species = species_list[0]
+                            s_name = top_species["species"]
+                            s_conf = top_species["confidence"]
+                        else:
+                            # Fallback para no-animales (vehículos, personas) o si SpeciesNet falló
+                            s_name = d.get("class_name", "unknown")
+                            s_conf = float(d.get("confidence", 0.0))
+
+                        # Creamos el detalle inyectando su respectivo crop_url
+                        flattened_detections.append(DetectionDetail(
+                            species=s_name,
+                            confidence=round(s_conf, 2),  # Redondeado a 2 decimales (ej: 0.95)
+                            crop_url=d.get("crop_url")    # 📂 Asignado individualmente
                         ))
-                        total_crops += len(detections)
-                        categories_found.update(d["class_name"] for d in detections)
 
-                frame_idx += 1
+                    # Agregamos el frame con su lista de detecciones detalladas
+                    results.append(TimestampDetection(
+                        timestamp_seconds=timestamp,
+                        detections=flattened_detections
+                    ))
+                    
+                    total_crops += len(detections)
+                    categories_found.update(d["class_name"] for d in detections)
 
+            # Liberamos el lector para evitar bloqueos del SO (WinError 32)
             cap.release()
 
     except Exception as e:
