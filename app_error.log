@@ -1,0 +1,6 @@
+Using cache found in C:\Users\ASUS/.cache\torch\hub\ultralytics_yolov5_master
+YOLOv5  2026-5-31 Python-3.9.13 torch-2.8.0+cpu CPU
+
+Fusing layers... 
+Model summary: 574 layers, 139990096 parameters, 0 gradients, 207.9 GFLOPs
+Adding AutoShape... 
