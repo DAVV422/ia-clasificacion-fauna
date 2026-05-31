@@ -43,10 +43,105 @@ ia-deteccion/
 
 ---
 
-## 🛠️ Requisitos e Instalación
+## 🐳 Levantar con Docker (Recomendado para Producción)
+
+Esta es la forma más sencilla y reproducible de ejecutar la API. No necesitas instalar Python, PyTorch ni ninguna dependencia manualmente.
 
 ### Requisitos Previos
-- **Python 3.8 o superior** (Recomendado Python 3.10)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/macOS) o Docker Engine (Linux).
+- Al menos **6 GB de RAM** libres para el contenedor (MegaDetector + SpeciesNet en CPU).
+
+---
+
+### Opción A: Docker Compose (Recomendado)
+
+```bash
+# 1. Construir la imagen (solo la primera vez o tras cambios en el código)
+docker compose build
+
+# 2. Levantar el servicio en segundo plano
+docker compose up -d
+
+# 3. Ver logs en tiempo real
+docker compose logs -f wwf-api
+```
+
+El servidor estará disponible en **`http://localhost:8000`**.
+
+> **Primera ejecución:** Al arrancar por primera vez, el contenedor descargará automáticamente los pesos de MegaDetector (~144 MB) y el clasificador SpeciesNet desde Kaggle Hub (~200 MB). Esto puede tardar **3-8 minutos** según la velocidad de tu conexión. Los pesos quedan guardados en la carpeta local `./models/` y no se vuelven a descargar.
+
+**Comandos útiles:**
+
+```bash
+# Detener el servicio
+docker compose down
+
+# Reiniciar el servicio
+docker compose restart wwf-api
+
+# Ver el estado del healthcheck
+docker compose ps
+
+# Reconstruir y levantar en un solo paso (útil tras cambiar el código)
+docker compose up -d --build
+```
+
+---
+
+### Opción B: Docker run (Manual)
+
+Si prefieres no usar docker-compose, puedes construir y ejecutar la imagen directamente:
+
+```bash
+# 1. Construir la imagen
+docker build -t wwf-wildlife-detection:latest .
+
+# 2. Crear carpetas locales para datos persistentes (si no existen)
+mkdir -p models detections temp
+
+# 3. Ejecutar el contenedor
+docker run -d \
+  --name wwf-wildlife-api \
+  -p 8000:8000 \
+  -v "$(pwd)/models:/app/models" \
+  -v "$(pwd)/detections:/app/detections" \
+  -v "$(pwd)/temp:/app/temp" \
+  -e TORCH_HOME=/app/models/torch_hub \
+  -e KAGGLE_CACHE_DIR=/app/models/kaggle_cache \
+  --memory="6g" \
+  --restart unless-stopped \
+  wwf-wildlife-detection:latest
+```
+
+> En PowerShell (Windows), reemplaza `$(pwd)` por `${PWD}`.
+
+**Ver logs:**
+```bash
+docker logs -f wwf-wildlife-api
+```
+
+**Detener y eliminar el contenedor:**
+```bash
+docker stop wwf-wildlife-api && docker rm wwf-wildlife-api
+```
+
+---
+
+### Estructura de Archivos Docker
+
+```
+ia-deteccion/
+├── Dockerfile           # Build multi-stage (builder + runtime)
+├── docker-compose.yml   # Orquestación del servicio con volúmenes y healthcheck
+└── .dockerignore        # Excluye venv, modelos y caché del contexto de build
+```
+
+---
+
+## 🛠️ Instalación Local (Sin Docker)
+
+### Requisitos Previos
+- **Python 3.10** (Recomendado)
 - **Git** instalado (requerido por PyTorch Hub).
 
 ### Paso 1: Activar entorno virtual
@@ -65,6 +160,7 @@ pip install -r requirements.txt
 ```
 
 ---
+
 
 ## ⚙️ Cómo Ejecutar el Servidor
 
@@ -117,13 +213,9 @@ La API retornará una respuesta organizada indicando la categoría, la especie c
     {
       "timestamp_seconds": 2.5,
       "detections": [
-        {
-          "box": [0.352, 0.124, 0.721, 0.548],
-          "class_name": "animal",
+        {         
           "confidence": 0.874,
-          "species": "Panthera onca",
-          "species_confidence": 0.9412,
-          "crop_path": "detections/animal/4c919a3b-2401-443b-85fa-71d5334de320.jpg",
+          "species": "Panthera onca",          
           "crop_url": "/detections/animal/4c919a3b-2401-443b-85fa-71d5334de320.jpg"
         }
       ]
@@ -131,13 +223,9 @@ La API retornará una respuesta organizada indicando la categoría, la especie c
     {
       "timestamp_seconds": 3.0,
       "detections": [
-        {
-          "box": [0.348, 0.141, 0.718, 0.562],
-          "class_name": "animal",
+        {          
           "confidence": 0.912,
           "species": "Panthera onca",
-          "species_confidence": 0.9501,
-          "crop_path": "detections/animal/7f12a64c-83b2-4d2d-94bb-1845bb08a1c9.jpg",
           "crop_url": "/detections/animal/7f12a64c-83b2-4d2d-94bb-1845bb08a1c9.jpg"
         }
       ]

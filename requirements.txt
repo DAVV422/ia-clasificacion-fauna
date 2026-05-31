@@ -11,4 +11,5 @@ pillow>=9.5.0
 tqdm>=4.65.0
 pydantic>=2.0
 speciesnet>=0.1.0
-
+ultralytics
+seaborn==0.13.2

@@ -42,7 +42,8 @@ class WildlifeDetector:
                     "custom",
                     path=model_path_str,
                     device=self.device,
-                    force_reload=False
+                    force_reload=False,
+                    trust_repo=True
                 )
                 # Set confidence threshold on the model itself
                 self.model.conf = CONFIDENCE_THRESHOLD
@@ -56,7 +57,8 @@ class WildlifeDetector:
                         "custom",
                         path=model_path_str,
                         device=self.device,
-                        force_reload=True
+                        force_reload=True,
+                        trust_repo=True
                     )
                     self.model.conf = CONFIDENCE_THRESHOLD
                     logger.info("MegaDetector loaded successfully after reload!")
