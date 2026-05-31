@@ -45,8 +45,6 @@ app.add_middleware(
 # Initialize detector
 detector = WildlifeDetector()
 
-# Mount the detections folder so crops can be accessed as static files
-# E.g. http://localhost:8000/detections/animal/uuid.jpg
 app.mount("/detections", StaticFiles(directory=str(DETECTIONS_DIR)), name="detections")
 
 @app.on_event("startup")
@@ -144,48 +142,6 @@ async def detect_wildlife(
                 categories_found.update(d["class_name"] for d in detections)
 
         else:
-            # # --- PROCESS VIDEO ---
-            # cap = cv2.VideoCapture(str(temp_path))
-            # if not cap.isOpened():
-            #     raise HTTPException(status_code=400, detail="Could not open the uploaded video.")
-
-            # # Get video specs
-            # fps = cap.get(cv2.CAP_PROP_FPS)
-            # frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            
-            # # Prevent DivisionByZero if metadata is corrupt
-            # if fps <= 0:
-            #     fps = 30.0
-            
-            # duration_seconds = round(frame_count / fps, 2)
-            # logger.info(f"Video specs: {duration_seconds}s duration, {fps} FPS, {frame_count} frames.")
-
-            # # Calculate frame sampling step
-            # # E.g., if video is 30 FPS and we want 2 FPS sampling, we take a frame every 15 frames.
-            # step = int(round(fps / VIDEO_FPS_SAMPLING))
-            # step = max(1, step)  # Enforce at least 1
-
-            # frame_idx = 0
-            # while cap.isOpened():
-            #     ret, frame = cap.read()
-            #     if not ret:
-            #         break
-
-            #     if frame_idx % step == 0:
-            #         timestamp = round(frame_idx / fps, 2)
-            #         detections = detector.detect_and_crop(frame, filename, timestamp=timestamp)
-                    
-            #         if detections:
-            #             results.append(TimestampDetection(
-            #                 timestamp_seconds=timestamp,
-            #                 detections=[DetectionDetail(**d) for d in detections]
-            #             ))
-            #             total_crops += len(detections)
-            #             categories_found.update(d["class_name"] for d in detections)
-
-            #     frame_idx += 1
-
-            # cap.release()
             # --- PROCESS VIDEO ---
             cap = cv2.VideoCapture(str(temp_path))
             if not cap.isOpened():
@@ -220,14 +176,7 @@ async def detect_wildlife(
                 frames_to_extract = [0]
 
             # Inicializamos la métrica solicitada para contar animales en simultáneo
-            max_animals_simultaneous = 0
-
-            # Generamos el nombre de contenedor aislado único para este video (Tu requerimiento previo)
-            # from pathlib import Path
-            # import uuid
-            # base_name = Path(filename).stem
-            # unique_run_id = uuid.uuid4().hex[:8]
-            # video_execution_folder = f"{base_name}_{unique_run_id}"            
+            max_animals_simultaneous = 0      
 
             # 1. Obtener el nombre base original
             base_name_raw = Path(filename).stem
@@ -261,21 +210,6 @@ async def detect_wildlife(
                 
                 # Pasamos el identificador del video único a tu función modificada
                 detections = detector.detect_and_crop(frame, video_execution_folder, timestamp=timestamp)
-                
-                # if detections:
-                #     # 📊 CALCULAR EL MÁXIMO DE ANIMALES EN SIMULTÁNEO EN ESTE FRAME
-                #     animals_in_frame = sum(1 for d in detections if d["class_name"] == "animal")
-                #     if animals_in_frame > max_animals_simultaneous:
-                #         max_animals_simultaneous = animals_in_frame
-
-                #     # Mapeo y registro en los esquemas de Pydantic de salida
-                #     results.append(TimestampDetection(
-                #         timestamp_seconds=timestamp,
-                #         detections=[DetectionDetail(**d) for d in detections]
-                #     ))
-                #     total_crops += len(detections)
-                #     categories_found.update(d["class_name"] for d in detections)
-
                 if detections:
                 # 📊 CALCULAR EL MÁXIMO DE ANIMALES EN SIMULTÁNEO EN ESTE FRAME
                     animals_in_frame = sum(1 for d in detections if d["class_name"] == "animal")

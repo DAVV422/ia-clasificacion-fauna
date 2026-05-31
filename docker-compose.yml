@@ -1,0 +1,60 @@
+services:
+  wwf-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: wwf-wildlife-api
+    image: wwf-wildlife-detection:latest
+
+    ports:
+      - "8000:8000"
+
+    # ----------------------------------------------------------------
+    # Volúmenes persistentes: los modelos descargados y detecciones
+    # sobreviven reinicios del contenedor.
+    # ----------------------------------------------------------------
+    volumes:
+      # Pesos de MegaDetector y caché de PyTorch Hub / KaggleHub
+      - ./models:/app/models
+      # Recortes de animales detectados organizados por categoría
+      - ./detections:/app/detections
+      # Carpeta temporal de uploads (se limpia sola, pero mejor persistir)
+      - ./temp:/app/temp
+
+    # ----------------------------------------------------------------
+    # Variables de entorno (override del Dockerfile)
+    # ----------------------------------------------------------------
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TORCH_HOME=/app/models/torch_hub
+      - KAGGLE_CACHE_DIR=/app/models/kaggle_cache
+
+    # ----------------------------------------------------------------
+    # Recursos: Importante para evitar OOM con PyTorch
+    # Ajusta según el hardware del servidor de producción.
+    # ----------------------------------------------------------------
+    deploy:
+      resources:
+        limits:
+          memory: 6G        # SpeciesNet + MegaDetector necesitan ~4-5GB en CPU
+        reservations:
+          memory: 2G
+
+    # Reinicio automático salvo que el usuario detenga el contenedor
+    restart: unless-stopped
+
+    # Healthcheck: espera 2 minutos para que los modelos se descarguen y carguen
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 5
+
+    # Log rotation para evitar que los logs de inferencia llenen el disco
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"

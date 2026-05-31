@@ -1,0 +1,45 @@
+# .dockerignore — Excluye archivos innecesarios del contexto de build de Docker
+# Esto acelera considerablemente el tiempo de build y reduce el tamaño de la imagen.
+
+# Entorno virtual local (nunca debe copiarse al contenedor)
+venv/
+.venv/
+env/
+
+# Pesos de modelos grandes (se descargan automáticamente en el primer arranque)
+models/*.pt
+models/*.tflite
+models/*.onnx
+models/torch_hub/
+models/kaggle_cache/
+
+# Detecciones locales (montadas como volumen en producción)
+detections/
+
+# Uploads temporales
+temp/
+
+# Control de versiones
+.git/
+.gitignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Herramientas de desarrollo
+.vscode/
+.idea/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Logs
+*.log
+
+# Docs adicionales
+*.md

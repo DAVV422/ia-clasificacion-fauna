@@ -2,3 +2,4 @@ venv/
 temp/
 detecctions/
 */__pycache__/
+models/
