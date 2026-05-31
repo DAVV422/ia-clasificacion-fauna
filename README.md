@@ -243,3 +243,53 @@ En `app/config.py` puedes ajustar variables de rendimiento clave:
 - **`SPECIESNET_CONFIDENCE_THRESHOLD = 0.15`**: Umbral mínimo para reportar la clasificación de especie de SpeciesNet.
 - **`VIDEO_FPS_SAMPLING = 2.0`**: Cantidad de frames analizados por segundo de video (ej. `1.0` es ideal para CPU, `5.0` para mayor precisión de movimiento).
 - **`SPECIESNET_MODEL_NAME`**: Identificador del clasificador en Kaggle Hub (por defecto: `kaggle:google/speciesnet/pyTorch/v4.0.2a/1`).
+
+---
+
+## 🖥️ Aplicación de Escritorio (GUI)
+
+El proyecto incluye una **interfaz gráfica de escritorio (GUI)** diseñada en blanco y negro, pensada para procesar carpetas enteras de imágenes y videos locales sin necesidad de levantar el servidor web ni usar Docker.
+
+### Cómo ejecutar la App de Escritorio
+Si estás en Windows y tienes Python instalado:
+1. Simplemente haz doble clic en el archivo **`Iniciar_App.bat`**.
+2. O desde la terminal, con tu entorno virtual activo: `python desktop_app.py`
+
+La aplicación te permite:
+- Seleccionar una **carpeta de entrada** con múltiples fotos y videos.
+- Seleccionar una **carpeta de salida**.
+- Elegir si quieres **Copiar** o **Mover** los archivos.
+- Al procesar, creará subcarpetas automáticas con los nombres de las especies detectadas (ej. `salida/Panthera_onca/archivo.mp4`).
+
+### 💻 Requisitos Mínimos del Sistema
+Para que la aplicación funcione correctamente (ya sea la API o el Escritorio):
+- **Sistema Operativo:** Windows 10/11, macOS, o Linux.
+- **Procesador (CPU):** Intel Core i5 / AMD Ryzen 5 o superior.
+- **Memoria RAM:** Mínimo **6 GB a 8 GB libres** (MegaDetector y SpeciesNet ocupan bastante memoria en la etapa de carga).
+- **Almacenamiento:** ~500 MB libres para la descarga automática de los modelos de IA.
+- *(Opcional)* **GPU:** Tarjeta gráfica NVIDIA compatible con CUDA para acelerar el procesamiento de video 5x a 10x veces.
+
+---
+
+## 📦 Empaquetar como Ejecutable (.exe) Independiente
+
+Si necesitas distribuir la aplicación a usuarios que no saben usar la consola ni tienen Python instalado, puedes empaquetarla usando **PyInstaller**. Esto generará un programa `.exe` autónomo.
+
+### Limitaciones Importantes:
+1. **Tamaño del archivo:** Como empaquetarás PyTorch, OpenCV y los modelos, el tamaño final del programa superará los **2.5 GB a 4 GB**.
+2. **Plataforma:** El `.exe` generado en Windows **solo funcionará en Windows**. Para crear una versión de Mac, debes correr el empaquetado desde una Mac.
+3. **Falsos Positivos Antivirus:** Windows Defender suele bloquear ejecutables de PyInstaller que no están firmados digitalmente. Podría ser necesario decirle al antivirus que permita la aplicación.
+4. **Arranque en frío:** Si decides usar la opción `--onefile` (un solo `.exe`), el programa tardará minutos en abrir porque descomprime gigabytes temporalmente. Por eso se recomienda el modo "carpeta" (`--onedir`).
+
+### Instrucciones para empaquetar en Windows:
+
+1. Activa tu entorno virtual e instala PyInstaller:
+   ```bash
+   pip install pyinstaller
+   ```
+2. Ejecuta el comando de empaquetado (modo carpeta sin consola negra de fondo):
+   ```bash
+   pyinstaller --noconfirm --onedir --windowed --add-data "public;public" --add-data "app;app" --name "WWF_Clasificador" desktop_app.py
+   ```
+3. Al finalizar, ve a la nueva carpeta `dist/WWF_Clasificador/`.
+4. El archivo **`WWF_Clasificador.exe`** es tu aplicación. Puedes comprimir toda la carpeta `WWF_Clasificador` en un `.zip` y compartirla.
