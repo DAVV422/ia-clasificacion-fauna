@@ -1,5 +1,5 @@
 """
-WWF Wildlife Desktop Detector — Prototipo v1
+WWM Wildlife Desktop Detector — Prototipo v1
 ============================================
 Detecta animales en imágenes/videos de una carpeta de entrada
 y copia o mueve los archivos positivos a una carpeta de salida,
@@ -13,6 +13,13 @@ Dependencias: las mismas que requirements.txt (no necesita instalar nada extra).
 
 import sys
 import os
+
+# Fix for PyInstaller windowed mode where stdout/stderr are None
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w")
+
 import shutil
 import threading
 import queue
@@ -21,6 +28,19 @@ from pathlib import Path
 from typing import List, Tuple
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext, messagebox
+
+# --- HIDDEN IMPORTS PARA PYINSTALLER ---
+# PyInstaller no detecta dependencias dinámicas cargadas por torch.hub (YOLOv5).
+# Al importarlas aquí, forzamos a PyInstaller a incluirlas en el .exe.
+try:
+    import ultralytics
+    import pandas
+    import yaml
+    import tqdm
+    import torchvision
+except ImportError:
+    pass
+# ---------------------------------------
 
 # ---------------------------------------------------------------------------
 # Añadir la raíz del proyecto al path para poder importar los módulos de app/
@@ -117,7 +137,7 @@ class WildlifeDesktopApp(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title("🦁  WWF Wildlife Detector  — Prototipo v1")
+        self.title("🦁  WWM Wildlife Detector  — Prototipo v1")
         self.geometry("860x650")
         self.minsize(700, 560)
         self.configure(bg=BG_DARK)
@@ -159,7 +179,7 @@ class WildlifeDesktopApp(tk.Tk):
 
         tk.Label(
             header,
-            text="WWF Clasificador de especies",
+            text="WWM Clasificador de especies",
             font=("Segoe UI", 18, "bold"),
             bg=BG_PANEL,
             fg=ACCENT,
@@ -339,6 +359,17 @@ class WildlifeDesktopApp(tk.Tk):
         self.log_text.tag_config("error", foreground=ERROR_FG)
         self.log_text.tag_config("dim",   foreground=TEXT_DIM)
         self.log_text.tag_config("head",  foreground="#60a5fa", font=("Cascadia Code", 9, "bold"))
+
+        # ── Footer ──────────────────────────────────────────────────────────
+        footer = tk.Frame(self, bg=BG_DARK, padx=20, pady=5)
+        footer.pack(fill="x", side="bottom")
+        tk.Label(
+            footer,
+            text="Grupo CETERIS 404 - InnovaHack 2026 - desarrollado por DAVV422",
+            bg=BG_DARK,
+            fg=TEXT_DIM,
+            font=("Segoe UI", 8, "italic"),
+        ).pack(side="right")
 
     # -----------------------------------------------------------------------
     # Helper: fila carpeta (label + entry + botón)
@@ -671,5 +702,8 @@ class WildlifeDesktopApp(tk.Tk):
 # Entry point
 # ===========================================================================
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
+    
     app = WildlifeDesktopApp()
     app.mainloop()

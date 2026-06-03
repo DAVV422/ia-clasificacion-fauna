@@ -1,10 +1,10 @@
 @echo off
-title WWF Clasificador de especies - Escritorio
+title WWM Clasificador de especies - Escritorio
 chcp 65001 > nul
 
 echo.
 echo  ==========================================
-echo   WWF Clasificador de especies  --  Prototipo v1
+echo   WWM Clasificador de especies  --  Prototipo v1
 echo  ==========================================
 echo.
 

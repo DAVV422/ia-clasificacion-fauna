@@ -3,3 +3,6 @@ temp/
 detecctions/
 */__pycache__/
 models/
+build/
+dist/
+*.spec

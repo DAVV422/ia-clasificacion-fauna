@@ -1,8 +1,15 @@
 import os
+import sys
 from pathlib import Path
 
 # Base paths
-BASE_DIR = Path(__file__).resolve().parent.parent
+if getattr(sys, 'frozen', False):
+    # Si estamos en un .exe de PyInstaller, BASE_DIR es la carpeta donde está el .exe
+    BASE_DIR = Path(sys.executable).parent
+else:
+    # Si es script normal
+    BASE_DIR = Path(__file__).resolve().parent.parent
+
 MODELS_DIR = BASE_DIR / "models"
 DETECTIONS_DIR = BASE_DIR / "detections"
 TEMP_DIR = BASE_DIR / "temp"
