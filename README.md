@@ -293,7 +293,7 @@ Si necesitas distribuir la aplicación a usuarios que no saben usar la consola n
    ```
 - Ejecuta el comando de empaquetado (un solo archivo)
    ```bash
-   pyinstaller --noconfirm --onefile --windowed --collect-all cloudpathlib --collect-all speciesnet --collect-all ultralytics --collect-all onnx2torch desktop_app.py
+   pyinstaller --noconfirm --onefile --windowed --icon="public/logo.ico" --splash="public/splash.png" --collect-all cloudpathlib --collect-all speciesnet --collect-all ultralytics --collect-all onnx2torch desktop_app.py
    ```
 3. Al finalizar, ve a la nueva carpeta `dist/WWF_Clasificador/`.
 4. El archivo **`WWF_Clasificador.exe`** es tu aplicación. Puedes comprimir toda la carpeta `WWF_Clasificador` en un `.zip` y compartirla.

@@ -191,6 +191,14 @@ class WildlifeDesktopApp(tk.Tk):
         self.minsize(700, 560)
         self.configure(bg=BG_DARK)
 
+        # Aplicar el ícono a la ventana
+        try:
+            icon_path = PROJECT_ROOT / "public" / "logo.ico"
+            if icon_path.exists():
+                self.iconbitmap(str(icon_path))
+        except Exception:
+            pass
+
         self.detector = WildlifeDetector()
         self.log_queue: queue.Queue = queue.Queue()
         self.is_running = False
@@ -200,6 +208,14 @@ class WildlifeDesktopApp(tk.Tk):
 
         # Cargar modelos en segundo plano al arrancar
         self.after(400, self._init_models_async)
+
+        # Cerrar el splash screen de PyInstaller (si existe) una vez que la interfaz carga
+        try:
+            import pyi_splash
+            if pyi_splash.is_alive():
+                pyi_splash.close()
+        except ImportError:
+            pass
 
     # -----------------------------------------------------------------------
     # Construcción de la interfaz
