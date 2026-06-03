@@ -74,7 +74,9 @@ class WildlifeDetector:
                 self.classifier = SpeciesNetClassifier(model_name=SPECIESNET_MODEL_NAME, device=self.device)
                 logger.info("SpeciesNet classifier loaded successfully!")
             except Exception as e:
-                logger.error(f"Error loading SpeciesNet classifier: {e}")
+                import traceback
+                full_error = traceback.format_exc()
+                raise RuntimeError(f"Fallo detallado en SpeciesNet:\n{full_error}")
 
     def map_class_name(self, class_id: int, class_name_str: str) -> str:
         """

@@ -13,12 +13,23 @@ Dependencias: las mismas que requirements.txt (no necesita instalar nada extra).
 
 import sys
 import os
+import multiprocessing
+
+# Prevenir fork bombs en Windows con PyInstaller debe ir al inicio
+if __name__ == '__main__':
+    multiprocessing.freeze_support()
 
 # Fix for PyInstaller windowed mode where stdout/stderr are None
+class NullStream:
+    def write(self, data): pass
+    def flush(self): pass
+    def close(self): pass
+    def fileno(self): return -1
+
 if sys.stdout is None:
-    sys.stdout = open(os.devnull, "w")
+    sys.stdout = NullStream()
 if sys.stderr is None:
-    sys.stderr = open(os.devnull, "w")
+    sys.stderr = NullStream()
 
 import shutil
 import threading
@@ -38,6 +49,12 @@ try:
     import yaml
     import tqdm
     import torchvision
+    import speciesnet
+    import speciesnet.classifier
+    import cloudpathlib
+    import kagglehub
+    import onnx2torch
+    import onnx
 except ImportError:
     pass
 # ---------------------------------------
@@ -71,7 +88,7 @@ import requests
 # Descarga de pesos independiente (sin FastAPI) para modo escritorio
 # ---------------------------------------------------------------------------
 def _download_weights(url: str, dest_path: Path, log_fn=None):
-    """Descarga los pesos del modelo si no existen. Reporta progreso via log_fn."""
+    """Descarga los pesos del modelo si no existen. Reporta progreso y reanuda si falla."""
     if dest_path.exists():
         if log_fn:
             log_fn(f"✅  Modelo encontrado en {dest_path.name}", "ok")
@@ -80,32 +97,64 @@ def _download_weights(url: str, dest_path: Path, log_fn=None):
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest_path.with_suffix(".tmp")
 
-    if log_fn:
-        log_fn(f"⬇️   Descargando {dest_path.name} (~144 MB)…", "warn")
-    try:
-        with requests.get(url, stream=True, timeout=300) as r:
-            r.raise_for_status()
-            total = int(r.headers.get("content-length", 0))
-            downloaded = 0
-            with open(tmp, "wb") as f:
-                for chunk in r.iter_content(chunk_size=1024 * 1024):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        if total and log_fn:
-                            pct = downloaded / total * 100
-                            log_fn(
-                                f"   MegaDetector: {pct:.0f}%  "
-                                f"({downloaded/1024/1024:.0f} / {total/1024/1024:.0f} MB)",
-                                "dim",
-                            )
-        tmp.rename(dest_path)
-        if log_fn:
-            log_fn("✅  MegaDetector descargado correctamente.", "ok")
-    except Exception as exc:
+    max_retries = 5
+    for attempt in range(max_retries):
+        headers = {}
+        downloaded = 0
+        mode = "wb"
+        
         if tmp.exists():
-            tmp.unlink()
-        raise RuntimeError(f"No se pudo descargar MegaDetector: {exc}")
+            downloaded = tmp.stat().st_size
+            headers["Range"] = f"bytes={downloaded}-"
+            mode = "ab"
+
+        if log_fn:
+            msg = f"⬇️   Descargando {dest_path.name}…"
+            if downloaded > 0:
+                msg = f"⬇️   Reanudando {dest_path.name} desde {downloaded/1024/1024:.0f} MB…"
+            log_fn(msg, "warn")
+
+        try:
+            with requests.get(url, headers=headers, stream=True, timeout=60) as r:
+                r.raise_for_status()
+                
+                # Si el servidor ignora "Range", devuelve 200 en vez de 206 (Partial Content)
+                if r.status_code == 200:
+                    downloaded = 0
+                    mode = "wb"
+                
+                content_len = int(r.headers.get("content-length", 0))
+                total = downloaded + content_len
+                
+                with open(tmp, mode) as f:
+                    for chunk in r.iter_content(chunk_size=1024 * 1024):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total and log_fn:
+                                pct = downloaded / total * 100
+                                log_fn(
+                                    f"   MegaDetector: {pct:.0f}%  "
+                                    f"({downloaded/1024/1024:.0f} / {total/1024/1024:.0f} MB)",
+                                    "dim",
+                                )
+            tmp.rename(dest_path)
+            if log_fn:
+                log_fn("✅  MegaDetector descargado correctamente.", "ok")
+            return
+            
+        except Exception as exc:
+            if log_fn:
+                log_fn(f"⚠️  Conexión interrumpida: {exc}", "error")
+            if attempt == max_retries - 1:
+                if tmp.exists():
+                    tmp.unlink()
+                raise RuntimeError(f"Fallo de red tras {max_retries} intentos.")
+            else:
+                if log_fn:
+                    log_fn("🔄  Reintentando en 3 segundos...", "warn")
+                import time
+                time.sleep(3)
 
 # ---------------------------------------------------------------------------
 # Extensiones soportadas
@@ -702,8 +751,10 @@ class WildlifeDesktopApp(tk.Tk):
 # Entry point
 # ===========================================================================
 if __name__ == "__main__":
-    import multiprocessing
-    multiprocessing.freeze_support()
+    # Prevent GUI from spawning if we are a subprocess that inherited env vars
+    if os.environ.get("WWM_GUI_LOCKED") == "1":
+        sys.exit(0)
+    os.environ["WWM_GUI_LOCKED"] = "1"
     
     app = WildlifeDesktopApp()
     app.mainloop()
