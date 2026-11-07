@@ -430,7 +430,7 @@ class WildlifeDesktopApp(tk.Tk):
         footer.pack(fill="x", side="bottom")
         tk.Label(
             footer,
-            text="Grupo CETERIS 404 - InnovaHack 2026 - desarrollado por DAVV422",
+            text="Desarrollado por grupo CETERIS 404 - InnovaHack 2026",
             bg=BG_DARK,
             fg=TEXT_DIM,
             font=("Segoe UI", 8, "italic"),
