@@ -11,11 +11,16 @@ nunca junto al ejecutable (HU-DS-04)::
 Este módulo **no** importa torch ni crea nada al importarse.
 """
 
+import contextlib
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
+from typing import Iterable, Iterator, Optional
 
 APP_DIR_NAME = "WWM"
+MEGADETECTOR_FILE = "md_v5a.0.0.pt"
 
 
 def data_dir() -> Path:
@@ -40,6 +45,64 @@ def logs_dir() -> Path:
 
 def tmp_dir() -> Path:
     return data_dir() / "tmp"
+
+
+def megadetector_path() -> Path:
+    return models_dir() / MEGADETECTOR_FILE
+
+
+def clear_tmp() -> None:
+    """Vacía ``tmp_dir()`` (al terminar cada archivo y al cerrar la app). Nunca lanza."""
+    folder = tmp_dir()
+    if not folder.is_dir():
+        return
+    for child in folder.iterdir():
+        try:
+            if child.is_dir():
+                shutil.rmtree(child, ignore_errors=True)
+            else:
+                child.unlink()
+        except OSError:
+            pass  # un archivo aún abierto se limpia en la próxima pasada
+
+
+@contextlib.contextmanager
+def file_tmp() -> Iterator[Path]:
+    """Carpeta temporal para procesar un archivo; se borra al salir, aunque haya error."""
+    tmp_dir().mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=str(tmp_dir()), prefix="job_") as folder:
+        yield Path(folder)
+
+
+def legacy_model_candidates() -> Iterable[Path]:
+    """Dónde dejaba el prototipo los pesos: ``models/`` junto al .exe viejo (o la raíz del repo) y en el cwd."""
+    exe_dir = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
+    seen = set()
+    for base in (exe_dir, Path.cwd()):
+        candidate = (base / "models" / MEGADETECTOR_FILE).resolve()
+        if candidate not in seen:
+            seen.add(candidate)
+            yield candidate
+
+
+def migrate_legacy_model(candidates: Optional[Iterable[Path]] = None) -> Optional[Path]:
+    """Si los pesos ya existen donde los dejaba el prototipo, los **copia** a ``models_dir()``.
+
+    Evita volver a descargar ~270 MB. Copia (no mueve) porque la carpeta vieja puede ser de solo
+    lectura o seguir en uso por la API en desarrollo. Copia a un ``.part`` y renombra: nunca deja
+    un archivo a medias. Devuelve el origen usado, o None si no hizo nada.
+    """
+    target = megadetector_path()
+    if target.exists():
+        return None
+    for source in candidates if candidates is not None else legacy_model_candidates():
+        if source.is_file() and source.stat().st_size > 0:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            part = target.with_suffix(".part")
+            shutil.copyfile(source, part)
+            os.replace(part, target)
+            return source
+    return None
 
 
 def settings_file() -> Path:

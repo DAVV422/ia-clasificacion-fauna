@@ -17,6 +17,7 @@ from app.config import (
     TEMP_DIR,
     DETECTIONS_DIR,
     DETECTIONS_URL_PREFIX,
+    ensure_api_dirs,
 )
 from app.utils import download_megadetector_weights, save_uploaded_file, clean_up_file
 from app.detector import WildlifeDetector
@@ -47,7 +48,8 @@ app.add_middleware(
 # Initialize detector
 detector = WildlifeDetector()
 
-app.mount("/detections", StaticFiles(directory=str(DETECTIONS_DIR)), name="detections")
+# check_dir=False: la carpeta se crea en el arranque (startup_event), no al importar (HU-DS-04).
+app.mount("/detections", StaticFiles(directory=str(DETECTIONS_DIR), check_dir=False), name="detections")
 
 @app.on_event("startup")
 def startup_event():
@@ -57,6 +59,7 @@ def startup_event():
     2. Warmup the PyTorch model so the first request is instant.
     """
     logger.info("Initializing application startup sequence...")
+    ensure_api_dirs()
     # 1. Download weights if missing
     download_megadetector_weights(MEGADETECTOR_URL, MEGADETECTOR_PATH)
     

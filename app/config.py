@@ -1,5 +1,10 @@
-import os
+"""Configuración de la API. Solo constantes: importar este módulo no crea nada en disco (HU-DS-04).
+
+Las carpetas de trabajo de la API las crea ``ensure_api_dirs()`` en el arranque (``app.main``).
+"""
+
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 # Base paths
@@ -10,14 +15,33 @@ else:
     # Si es script normal
     BASE_DIR = Path(__file__).resolve().parent.parent
 
-MODELS_DIR = BASE_DIR / "models"
-DETECTIONS_DIR = BASE_DIR / "detections"
-TEMP_DIR = BASE_DIR / "temp"
 
-# Ensure crucial directories exist
-MODELS_DIR.mkdir(parents=True, exist_ok=True)
-DETECTIONS_DIR.mkdir(parents=True, exist_ok=True)
-TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+@dataclass(frozen=True)
+class ApiDirs:
+    models: Path
+    detections: Path
+    temp: Path
+
+    def ensure(self) -> "ApiDirs":
+        for folder in (self.models, self.detections, self.temp):
+            folder.mkdir(parents=True, exist_ok=True)
+        return self
+
+
+def api_dirs(base: Path = BASE_DIR) -> ApiDirs:
+    return ApiDirs(models=base / "models", detections=base / "detections", temp=base / "temp")
+
+
+_DIRS = api_dirs()
+MODELS_DIR = _DIRS.models
+DETECTIONS_DIR = _DIRS.detections
+TEMP_DIR = _DIRS.temp
+
+
+def ensure_api_dirs() -> ApiDirs:
+    """Lo llama la API en su arranque (no al importar)."""
+    return _DIRS.ensure()
 
 # API Configurations
 API_TITLE = "WWF Wildlife Detection API (MegaDetector)"

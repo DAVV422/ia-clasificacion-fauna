@@ -35,6 +35,7 @@ except ImportError:
 # ---------------------------------------
 
 from desktop import __version__
+from desktop import paths
 from desktop.paths import resource_dir
 
 # Recursos (íconos, logo): carpeta del repo en desarrollo, _MEIPASS en el ejecutable.
@@ -44,10 +45,7 @@ PROJECT_ROOT = resource_dir()
 logging.getLogger("uvicorn.error").handlers = []
 logging.getLogger("uvicorn.error").propagate = True
 
-from app.config import (
-    MEGADETECTOR_URL,
-    MEGADETECTOR_PATH,
-)
+from app.config import MEGADETECTOR_URL
 from app.detector import WildlifeDetector
 from wwm_pipeline.aggregation import legacy_best
 from wwm_pipeline.config import PipelineConfig
@@ -182,7 +180,7 @@ class WildlifeDesktopApp(tk.Tk):
         except Exception:
             pass
 
-        self.detector = WildlifeDetector()
+        self.detector = WildlifeDetector(paths.megadetector_path())  # HU-DS-04: pesos en AppData
         self.log_queue: queue.Queue = queue.Queue()
         self.is_running = False
 
@@ -480,6 +478,9 @@ class WildlifeDesktopApp(tk.Tk):
     # -----------------------------------------------------------------------
     def _log(self, message: str, tag: str = "ok"):
         self.log_queue.put((message, tag))
+        # También al log JSON (HU-DS-00): soporte puede ver lo mismo que vio el usuario.
+        level = logging.ERROR if tag == "error" else logging.WARNING if tag == "warn" else logging.INFO
+        logging.getLogger("desktop.ui").log(level, message.strip())
 
     def _poll_log_queue(self):
         """Consume mensajes pendientes del log cada 100 ms."""
@@ -505,13 +506,15 @@ class WildlifeDesktopApp(tk.Tk):
 
         def _task():
             try:
-                _download_weights(MEGADETECTOR_URL, MEGADETECTOR_PATH, log_fn=self._log)
+                if paths.migrate_legacy_model():
+                    self._log("📦  Modelo copiado desde la instalación anterior", "ok")
+                _download_weights(MEGADETECTOR_URL, paths.megadetector_path(), log_fn=self._log)
                 self.detector.load_model()
-                self.log_queue.put(("✅  Modelos listos. ¡Puedes iniciar el análisis!", "ok"))
+                self._log("✅  Modelos listos. ¡Puedes iniciar el análisis!", "ok")
                 self.after(0, lambda: self.status_dot.config(
                     text="⬤  Listo", fg=ACCENT))
             except Exception as exc:
-                self.log_queue.put((f"❌  Error cargando modelos: {exc}", "error"))
+                self._log(f"❌  Error cargando modelos: {exc}", "error")
                 self.after(0, lambda: self.status_dot.config(
                     text="⬤  Error en modelos", fg=ERROR_FG))
 
@@ -671,7 +674,8 @@ class WildlifeDesktopApp(tk.Tk):
         los frames analizados, en el mismo formato que antes.
         """
         try:
-            result = classify_file(file_path, None, PipelineConfig.legacy_desktop(), self.detector.models)
+            with paths.file_tmp():  # HU-DS-04: cualquier temporal del archivo se borra al terminar
+                result = classify_file(file_path, None, PipelineConfig.legacy_desktop(), self.detector.models)
         except PipelineError as err:
             raise ValueError(err.message) from err
         return result.all_detections

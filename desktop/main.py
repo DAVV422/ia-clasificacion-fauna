@@ -11,6 +11,7 @@ Uso:
     python -m desktop.main --selftest   verifica rutas, logs e imports (sin cargar los modelos); código 0 si todo bien
 """
 
+import atexit
 import multiprocessing
 import os
 import sys
@@ -103,6 +104,10 @@ def run(argv=None) -> int:
 
     paths.ensure_dirs()
     paths.configure_env()
+    # HU-DS-04: si alguna librería escribe con rutas relativas, que caiga en AppData y no junto al .exe.
+    os.chdir(paths.data_dir())
+    paths.clear_tmp()  # restos de una sesión que terminó mal
+    atexit.register(paths.clear_tmp)
 
     from desktop import logging_setup
 
@@ -120,8 +125,11 @@ def run(argv=None) -> int:
 
     from desktop.ui.legacy_window import WildlifeDesktopApp
 
-    app = WildlifeDesktopApp()
-    app.mainloop()
+    try:
+        app = WildlifeDesktopApp()
+        app.mainloop()
+    finally:
+        paths.clear_tmp()
     return 0
 
 
