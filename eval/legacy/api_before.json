@@ -1,0 +1,42 @@
+{
+  "muestra_video.mp4": {
+    "status": 200,
+    "body": {
+      "filename": "muestra_video.mp4",
+      "media_type": "video",
+      "duration_seconds": 10.0,
+      "total_detections_count": 2,
+      "categories_found": [
+        "animal"
+      ],
+      "results": [
+        {
+          "timestamp_seconds": 5.0,
+          "detections": [
+            {
+              "species": "myrmecophaga;tridactyla;giant anteater",
+              "confidence": 1.0,
+              "crop_url": "/detections/muestra_video_<run>/animal/<uuid>.jpg"
+            }
+          ]
+        },
+        {
+          "timestamp_seconds": 7.5,
+          "detections": [
+            {
+              "species": "panthera;onca;jaguar",
+              "confidence": 1.0,
+              "crop_url": "/detections/muestra_video_<run>/animal/<uuid>.jpg"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "muestra_2.jpg": {
+    "status": 500,
+    "body": {
+      "detail": "Inference error during processing: 1 validation error for DetectionDetail\nspecies\n  Input should be a valid string [type=string_type, input_value=[{'species': 'panthera;on...ot', 'confidence': 0.0}], input_type=list]\n    For further information visit https://errors.pydantic.dev/2.14/v/string_type"
+    }
+  }
+}

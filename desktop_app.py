@@ -79,6 +79,19 @@ from app.config import (
     MEGADETECTOR_PATH,
 )
 from app.detector import WildlifeDetector
+from wwm_pipeline.aggregation import legacy_best
+from wwm_pipeline.config import PipelineConfig
+from wwm_pipeline.errors import PipelineError
+from wwm_pipeline.pipeline import classify_file
+
+
+def species_folder_name(label) -> str:
+    """Nombre de carpeta del prototipo: "género;especie;común" → "genero_especie_comun" (HU-DS-03 lo revisa)."""
+    if not label:
+        return "animal_desconocido"
+    folder = label.replace(";", "_").replace(" ", "_")
+    folder = "".join(c for c in folder if c.isalnum() or c in "_-")
+    return folder or "animal_desconocido"
 
 import cv2
 import requests
@@ -681,45 +694,17 @@ class WildlifeDesktopApp(tk.Tk):
     # Procesar un archivo (imagen o video)
     # -----------------------------------------------------------------------
     def _process_file(self, file_path: Path):
-        ext = file_path.suffix.lower()
-        detections = []
+        """Clasifica un archivo con wwm_pipeline (HU-IA-40, preset legacy_desktop).
 
-        if ext in IMAGE_EXTENSIONS:
-            frame = cv2.imread(str(file_path))
-            if frame is None:
-                raise ValueError("No se pudo leer la imagen (formato no válido o archivo corrupto).")
-            detections = self.detector.detect_and_crop(frame, file_path.stem, timestamp=0.0)
-
-        elif ext in VIDEO_EXTENSIONS:
-            cap = cv2.VideoCapture(str(file_path))
-            if not cap.isOpened():
-                raise ValueError("No se pudo abrir el video.")
-
-            fps         = cap.get(cv2.CAP_PROP_FPS) or 30.0
-            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-            # Muestrear hasta 3 frames distribuidos uniformemente
-            n_samples     = min(3, max(1, frame_count))
-            interval      = frame_count / (n_samples + 1)
-            frames_to_check = [int(interval * i) for i in range(1, n_samples + 1)]
-
-            for frame_idx in frames_to_check:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-                ret, frame = cap.read()
-                if not ret:
-                    continue
-
-                timestamp = round(frame_idx / fps, 2)
-                dets = self.detector.detect_and_crop(frame, file_path.stem, timestamp=timestamp)
-                detections.extend(dets)
-
-                # Salida temprana si ya confirmamos un animal
-                if any(d.get("class_name") == "animal" for d in dets):
-                    break
-
-            cap.release()
-
-        return detections
+        Mismo comportamiento que el prototipo: hasta 3 frames con salida temprana al primer
+        animal. Ya no se guardan recortes en disco (F0-D3). Devuelve las detecciones de todos
+        los frames analizados, en el mismo formato que antes.
+        """
+        try:
+            result = classify_file(file_path, None, PipelineConfig.legacy_desktop(), self.detector.models)
+        except PipelineError as err:
+            raise ValueError(err.message) from err
+        return result.all_detections
 
     # -----------------------------------------------------------------------
     # Helpers
@@ -727,22 +712,8 @@ class WildlifeDesktopApp(tk.Tk):
     @staticmethod
     def _resolve_species(animal_detections: list) -> Tuple[str, float]:
         """Devuelve (nombre_carpeta_especie, confianza) del mejor resultado."""
-        best_name = "animal_desconocido"
-        best_conf = 0.0
-
-        for det in animal_detections:
-            species_list = det.get("species", [])
-            if species_list:
-                top = species_list[0]
-                if top["confidence"] > best_conf:
-                    best_conf = top["confidence"]
-                    raw = top["species"]
-                    # Formatear nombre para usarlo como carpeta segura
-                    folder = raw.replace(";", "_").replace(" ", "_")
-                    folder = "".join(c for c in folder if c.isalnum() or c in "_-")
-                    best_name = folder or "animal_desconocido"
-
-        return best_name, best_conf
+        decision = legacy_best(animal_detections)
+        return species_folder_name(decision.label), decision.confidence
 
     @staticmethod
     def _unique_dest(dest: Path) -> Path:

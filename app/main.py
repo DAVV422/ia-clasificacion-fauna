@@ -1,7 +1,6 @@
 import logging
 from pathlib import Path
 from typing import List, Set
-import cv2
 import re
 import unicodedata
 import uuid
@@ -17,11 +16,14 @@ from app.config import (
     MEGADETECTOR_PATH,
     TEMP_DIR,
     DETECTIONS_DIR,
-    VIDEO_FPS_SAMPLING
+    DETECTIONS_URL_PREFIX,
 )
 from app.utils import download_megadetector_weights, save_uploaded_file, clean_up_file
 from app.detector import WildlifeDetector
 from app.schemas import AnalysisResponse, TimestampDetection, DetectionDetail
+from wwm_pipeline.config import PipelineConfig
+from wwm_pipeline.errors import PipelineError
+from wwm_pipeline.pipeline import classify_file
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -76,6 +78,14 @@ def read_root():
     }
 
 
+def _execution_folder(filename: str) -> str:
+    """Carpeta única de los recortes de un video (igual que antes): nombre normalizado + 8 hex."""
+    base_name_clean = unicodedata.normalize('NFKD', Path(filename).stem).encode('ASCII', 'ignore').decode('ASCII')
+    base_name_clean = base_name_clean.replace(" ", "_")
+    base_name_clean = re.sub(r'[^a-zA-Z0-9_ -]', '', base_name_clean).lower()
+    return f"{base_name_clean}_{uuid.uuid4().hex[:8]}"
+
+
 def is_image_file(filename: str) -> bool:
     extensions = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff"}
     return Path(filename).suffix.lower() in extensions
@@ -125,132 +135,59 @@ async def detect_wildlife(
     duration_seconds = None
 
     try:
+        # HU-IA-40: la clasificación vive en wwm_pipeline (preset legacy_api = comportamiento actual).
+        if is_img:
+            run_name = filename
+        else:
+            run_name = _execution_folder(filename)
+        config = PipelineConfig.legacy_api().with_crops(DETECTIONS_DIR, DETECTIONS_URL_PREFIX)
+        try:
+            outcome = classify_file(temp_path, filename, config, detector.models, run_name=run_name)
+        except PipelineError as perr:
+            # Mismo mensaje que antes; como antes, el except general lo convierte en 500.
+            detail = "Could not decode the uploaded image." if is_img else "Could not open the uploaded video."
+            raise HTTPException(status_code=400, detail=detail) from perr
+
         if is_img:
             # --- PROCESS IMAGE ---
-            frame = cv2.imread(str(temp_path))
-            if frame is None:
-                raise HTTPException(status_code=400, detail="Could not decode the uploaded image.")
-
-            detections = detector.detect_and_crop(frame, filename, timestamp=0.0)
-            
+            detections = outcome.frames[0].detections
             if detections:
+                # ⚠️ Error conocido (IA-03): DetectionDetail(**d) falla porque "species" es una lista.
                 results.append(TimestampDetection(
                     timestamp_seconds=0.0,
                     detections=[DetectionDetail(**d) for d in detections]
                 ))
                 total_crops = len(detections)
                 categories_found.update(d["class_name"] for d in detections)
-
         else:
             # --- PROCESS VIDEO ---
-            cap = cv2.VideoCapture(str(temp_path))
-            if not cap.isOpened():
-                raise HTTPException(status_code=400, detail="Could not open the uploaded video.")
-
-            # Get video specs
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            
-            # Prevent DivisionByZero if metadata is corrupt
-            if fps <= 0:
-                fps = 30.0
-            
-            duration_seconds = round(frame_count / fps, 2)
-            logger.info(f"Video specs: {duration_seconds}s duration, {fps} FPS, {frame_count} frames.")
-
-            # =========================================================================
-            # 🛠️ NUEVA LÓGICA DE MUESTREO: Mínimo 1, Máximo 3 capturas distribuidas uniformemente
-            # =========================================================================
-            MAX_CAPTURES = 3 
-            # Aseguramos que el límite configurado esté entre 1 y 3 de manera segura
-            total_captures_to_make = max(1, min(3, MAX_CAPTURES)) 
-            
-            # Calculamos los índices exactos de los frames que vamos a extraer
-            frames_to_extract = []
-            if frame_count > 0:
-                interval = frame_count / (total_captures_to_make + 1)
-                for i in range(1, total_captures_to_make + 1):
-                    frames_to_extract.append(int(interval * i))
-            else:
-                # Si por algún motivo el frame_count viene en 0, procesamos al menos el primer frame
-                frames_to_extract = [0]
-
-            # Inicializamos la métrica solicitada para contar animales en simultáneo
-            max_animals_simultaneous = 0      
-
-            # 1. Obtener el nombre base original
-            base_name_raw = Path(filename).stem
-
-            # 2. Normalizar para eliminar acentos (Ej: "jaguár" -> "jaguar", "niño" -> "nino")
-            base_name_clean = unicodedata.normalize('NFKD', base_name_raw).encode('ASCII', 'ignore').decode('ASCII')
-
-            # 3. Reemplazar espacios por guiones bajos (_)
-            base_name_clean = base_name_clean.replace(" ", "_")
-
-            # 4. Remover cualquier caracter que NO sea una letra, número, guion medio o guion bajo
-            base_name_clean = re.sub(r'[^a-zA-Z0-9_ -]', '', base_name_clean)
-
-            # 5. Opcional: Convertir todo a minúsculas para estandarizar las rutas
-            base_name_clean = base_name_clean.lower()
-
-            # 6. Generar el ID único y la carpeta final
-            unique_run_id = uuid.uuid4().hex[:8]
-            video_execution_folder = f"{base_name_clean}_{unique_run_id}"
-            # =========================================================================
-
-            # Iteramos directo sobre los frames seleccionados
-            for frame_idx in frames_to_extract:
-                # Posicionamos el puntero de OpenCV directamente en el frame deseado (Evita el lag del while)
-                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-                ret, frame = cap.read()
-                if not ret:
+            duration_seconds = outcome.duration_seconds
+            logger.info(f"Video specs: {duration_seconds}s duration, {outcome.fps} FPS, {outcome.frame_count} frames.")
+            for frame_result in outcome.frames:
+                detections = frame_result.detections
+                if not detections:
                     continue
-
-                timestamp = round(frame_idx / fps, 2)
-                
-                # Pasamos el identificador del video único a tu función modificada
-                detections = detector.detect_and_crop(frame, video_execution_folder, timestamp=timestamp)
-                if detections:
-                # 📊 CALCULAR EL MÁXIMO DE ANIMALES EN SIMULTÁNEO EN ESTE FRAME
-                    animals_in_frame = sum(1 for d in detections if d["class_name"] == "animal")
-                    if animals_in_frame > max_animals_simultaneous:
-                        max_animals_simultaneous = animals_in_frame
-
-                    # 🛠️ APLANAR Y ASIGNAR EL CROP URL A CADA DETECTION DETAIL
-                    flattened_detections = []
-
-                    for d in detections:
-                        # Obtenemos la lista de especies devueltas por la función
-                        species_list = d.get("species", [])
-                        
-                        if species_list:
-                            # La primera es la que tiene mayor confianza
-                            top_species = species_list[0]
-                            s_name = top_species["species"]
-                            s_conf = top_species["confidence"]
-                        else:
-                            # Fallback para no-animales (vehículos, personas) o si SpeciesNet falló
-                            s_name = d.get("class_name", "unknown")
-                            s_conf = float(d.get("confidence", 0.0))
-
-                        # Creamos el detalle inyectando su respectivo crop_url
-                        flattened_detections.append(DetectionDetail(
-                            species=s_name,
-                            confidence=round(s_conf, 2),  # Redondeado a 2 decimales (ej: 0.95)
-                            crop_url=d.get("crop_url")    # 📂 Asignado individualmente
-                        ))
-
-                    # Agregamos el frame con su lista de detecciones detalladas
-                    results.append(TimestampDetection(
-                        timestamp_seconds=timestamp,
-                        detections=flattened_detections
+                flattened_detections = []
+                for d in detections:
+                    species_list = d.get("species", [])
+                    if species_list:
+                        top_species = species_list[0]
+                        s_name = top_species["species"]
+                        s_conf = top_species["confidence"]
+                    else:
+                        s_name = d.get("class_name", "unknown")
+                        s_conf = float(d.get("confidence", 0.0))
+                    flattened_detections.append(DetectionDetail(
+                        species=s_name,
+                        confidence=round(s_conf, 2),
+                        crop_url=d.get("crop_url")
                     ))
-                    
-                    total_crops += len(detections)
-                    categories_found.update(d["class_name"] for d in detections)
-
-            # Liberamos el lector para evitar bloqueos del SO (WinError 32)
-            cap.release()
+                results.append(TimestampDetection(
+                    timestamp_seconds=frame_result.timestamp_seconds,
+                    detections=flattened_detections
+                ))
+                total_crops += len(detections)
+                categories_found.update(d["class_name"] for d in detections)
 
     except Exception as e:
         logger.error(f"Error during video/image analysis: {e}")
