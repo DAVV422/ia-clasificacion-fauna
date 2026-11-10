@@ -6,3 +6,8 @@ models/
 build/
 dist/
 *.spec
+# Desarrollo
+.venv/
+.pytest_cache/
+**/__pycache__/
+eval/runs/

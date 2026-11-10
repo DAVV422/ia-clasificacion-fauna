@@ -1,0 +1,547 @@
+{
+  "$comment": "wwm_pipeline contract 1.0.0 — generado por tools/export_schemas.py, no editar",
+  "$defs": {
+    "Alternative": {
+      "additionalProperties": false,
+      "properties": {
+        "common_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Common Name"
+        },
+        "label_id": {
+          "minLength": 1,
+          "title": "Label Id",
+          "type": "string"
+        },
+        "rank": {
+          "$ref": "#/$defs/Rank"
+        },
+        "scientific_name": {
+          "minLength": 1,
+          "title": "Scientific Name",
+          "type": "string"
+        },
+        "score": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "label_id",
+        "scientific_name",
+        "rank",
+        "score"
+      ],
+      "title": "Alternative",
+      "type": "object"
+    },
+    "Analysis": {
+      "additionalProperties": false,
+      "properties": {
+        "frames_discarded": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Frames Discarded",
+          "type": "object"
+        },
+        "frames_sampled": {
+          "minimum": 0,
+          "title": "Frames Sampled",
+          "type": "integer"
+        },
+        "frames_with_animal": {
+          "minimum": 0,
+          "title": "Frames With Animal",
+          "type": "integer"
+        },
+        "processing_ms": {
+          "minimum": 0,
+          "title": "Processing Ms",
+          "type": "integer"
+        },
+        "votes": {
+          "items": {
+            "$ref": "#/$defs/Vote"
+          },
+          "title": "Votes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "frames_sampled",
+        "frames_with_animal",
+        "processing_ms"
+      ],
+      "title": "Analysis",
+      "type": "object"
+    },
+    "Capture": {
+      "additionalProperties": false,
+      "properties": {
+        "captured_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Captured At"
+        },
+        "source": {
+          "$ref": "#/$defs/CaptureSource"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "Capture",
+      "type": "object"
+    },
+    "CaptureSource": {
+      "enum": [
+        "exif",
+        "container",
+        "filename",
+        "none"
+      ],
+      "title": "CaptureSource",
+      "type": "string"
+    },
+    "Category": {
+      "enum": [
+        "animal",
+        "person",
+        "vehicle",
+        "blank"
+      ],
+      "title": "Category",
+      "type": "string"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "bbox": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bbox",
+          "type": "array"
+        },
+        "detection_confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Detection Confidence",
+          "type": "number"
+        },
+        "frame_index": {
+          "minimum": 0,
+          "title": "Frame Index",
+          "type": "integer"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "maximum": 960,
+          "title": "Height",
+          "type": "integer"
+        },
+        "image_base64": {
+          "minLength": 1,
+          "title": "Image Base64",
+          "type": "string"
+        },
+        "image_mime": {
+          "const": "image/jpeg",
+          "default": "image/jpeg",
+          "title": "Image Mime",
+          "type": "string"
+        },
+        "timestamp_seconds": {
+          "minimum": 0,
+          "title": "Timestamp Seconds",
+          "type": "number"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "maximum": 960,
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "frame_index",
+        "timestamp_seconds",
+        "bbox",
+        "detection_confidence",
+        "image_base64",
+        "width",
+        "height"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "Media": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_seconds": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Seconds"
+        },
+        "file_name": {
+          "minLength": 1,
+          "title": "File Name",
+          "type": "string"
+        },
+        "fps": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fps"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "integer"
+        },
+        "media_type": {
+          "$ref": "#/$defs/MediaType"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file_name",
+        "media_type",
+        "sha256",
+        "size_bytes",
+        "width",
+        "height"
+      ],
+      "title": "Media",
+      "type": "object"
+    },
+    "MediaType": {
+      "enum": [
+        "image",
+        "video"
+      ],
+      "title": "MediaType",
+      "type": "string"
+    },
+    "ModelInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "classifier": {
+          "minLength": 1,
+          "title": "Classifier",
+          "type": "string"
+        },
+        "detector": {
+          "minLength": 1,
+          "title": "Detector",
+          "type": "string"
+        },
+        "pipeline_version": {
+          "minLength": 1,
+          "title": "Pipeline Version",
+          "type": "string"
+        },
+        "sampling": {
+          "minLength": 1,
+          "title": "Sampling",
+          "type": "string"
+        }
+      },
+      "required": [
+        "detector",
+        "classifier",
+        "sampling",
+        "pipeline_version"
+      ],
+      "title": "ModelInfo",
+      "type": "object"
+    },
+    "Rank": {
+      "description": "Nivel taxonómico alcanzado, de más general a más específico.",
+      "enum": [
+        "class",
+        "order",
+        "family",
+        "genus",
+        "species"
+      ],
+      "title": "Rank",
+      "type": "string"
+    },
+    "Result": {
+      "additionalProperties": false,
+      "properties": {
+        "alternatives": {
+          "items": {
+            "$ref": "#/$defs/Alternative"
+          },
+          "maxItems": 3,
+          "title": "Alternatives",
+          "type": "array"
+        },
+        "category": {
+          "$ref": "#/$defs/Category"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "taxonomy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Taxonomy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "category",
+        "confidence"
+      ],
+      "title": "Result",
+      "type": "object"
+    },
+    "Taxonomy": {
+      "additionalProperties": false,
+      "description": "Taxonomía de una etiqueta de SpeciesNet.\n\nLos niveles por debajo de ``rank`` van en ``None``. ``scientific_name``\ncorresponde al nivel de ``rank`` (``\"Panthera\"`` si ``rank=genus``).",
+      "properties": {
+        "class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Class"
+        },
+        "common_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Common Name"
+        },
+        "family": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Family"
+        },
+        "genus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Genus"
+        },
+        "label_id": {
+          "minLength": 1,
+          "title": "Label Id",
+          "type": "string"
+        },
+        "label_raw": {
+          "minLength": 1,
+          "title": "Label Raw",
+          "type": "string"
+        },
+        "order": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Order"
+        },
+        "rank": {
+          "$ref": "#/$defs/Rank"
+        },
+        "scientific_name": {
+          "minLength": 1,
+          "title": "Scientific Name",
+          "type": "string"
+        },
+        "species": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Species"
+        }
+      },
+      "required": [
+        "label_id",
+        "label_raw",
+        "scientific_name",
+        "rank"
+      ],
+      "title": "Taxonomy",
+      "type": "object"
+    },
+    "Vote": {
+      "additionalProperties": false,
+      "properties": {
+        "frames": {
+          "minimum": 0,
+          "title": "Frames",
+          "type": "integer"
+        },
+        "label_id": {
+          "title": "Label Id",
+          "type": "string"
+        },
+        "scientific_name": {
+          "title": "Scientific Name",
+          "type": "string"
+        },
+        "score": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "label_id",
+        "scientific_name",
+        "frames",
+        "score"
+      ],
+      "title": "Vote",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Contenido de ``data`` en una respuesta exitosa de ``POST /detect``.",
+  "properties": {
+    "analysis": {
+      "$ref": "#/$defs/Analysis"
+    },
+    "capture": {
+      "$ref": "#/$defs/Capture"
+    },
+    "evidence": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Evidence"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "media": {
+      "$ref": "#/$defs/Media"
+    },
+    "model": {
+      "$ref": "#/$defs/ModelInfo"
+    },
+    "result": {
+      "$ref": "#/$defs/Result"
+    }
+  },
+  "required": [
+    "media",
+    "capture",
+    "result",
+    "analysis",
+    "model"
+  ],
+  "title": "DetectResult",
+  "type": "object"
+}

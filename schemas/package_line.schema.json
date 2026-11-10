@@ -1,0 +1,441 @@
+{
+  "$comment": "wwm_pipeline contract 1.0.0 — generado por tools/export_schemas.py, no editar",
+  "$defs": {
+    "Alternative": {
+      "additionalProperties": false,
+      "properties": {
+        "common_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Common Name"
+        },
+        "label_id": {
+          "minLength": 1,
+          "title": "Label Id",
+          "type": "string"
+        },
+        "rank": {
+          "$ref": "#/$defs/Rank"
+        },
+        "scientific_name": {
+          "minLength": 1,
+          "title": "Scientific Name",
+          "type": "string"
+        },
+        "score": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "label_id",
+        "scientific_name",
+        "rank",
+        "score"
+      ],
+      "title": "Alternative",
+      "type": "object"
+    },
+    "CaptureSource": {
+      "enum": [
+        "exif",
+        "container",
+        "filename",
+        "none"
+      ],
+      "title": "CaptureSource",
+      "type": "string"
+    },
+    "Category": {
+      "enum": [
+        "animal",
+        "person",
+        "vehicle",
+        "blank"
+      ],
+      "title": "Category",
+      "type": "string"
+    },
+    "DesktopAction": {
+      "properties": {
+        "destination_folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Folder"
+        },
+        "type": {
+          "$ref": "#/$defs/DesktopActionType"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "DesktopAction",
+      "type": "object"
+    },
+    "DesktopActionType": {
+      "enum": [
+        "copy",
+        "move",
+        "left_in_place"
+      ],
+      "title": "DesktopActionType",
+      "type": "string"
+    },
+    "EvidenceRef": {
+      "properties": {
+        "bbox": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bbox",
+          "type": "array"
+        },
+        "file": {
+          "pattern": "^evidence/[0-9a-f]{64}\\.jpg$",
+          "title": "File",
+          "type": "string"
+        },
+        "frame_index": {
+          "minimum": 0,
+          "title": "Frame Index",
+          "type": "integer"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "maximum": 960,
+          "title": "Height",
+          "type": "integer"
+        },
+        "timestamp_seconds": {
+          "minimum": 0,
+          "title": "Timestamp Seconds",
+          "type": "number"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "maximum": 960,
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file",
+        "frame_index",
+        "timestamp_seconds",
+        "bbox",
+        "width",
+        "height"
+      ],
+      "title": "EvidenceRef",
+      "type": "object"
+    },
+    "LineStatus": {
+      "enum": [
+        "done",
+        "error"
+      ],
+      "title": "LineStatus",
+      "type": "string"
+    },
+    "MediaType": {
+      "enum": [
+        "image",
+        "video"
+      ],
+      "title": "MediaType",
+      "type": "string"
+    },
+    "Rank": {
+      "description": "Nivel taxonómico alcanzado, de más general a más específico.",
+      "enum": [
+        "class",
+        "order",
+        "family",
+        "genus",
+        "species"
+      ],
+      "title": "Rank",
+      "type": "string"
+    },
+    "Taxonomy": {
+      "additionalProperties": false,
+      "description": "Taxonomía de una etiqueta de SpeciesNet.\n\nLos niveles por debajo de ``rank`` van en ``None``. ``scientific_name``\ncorresponde al nivel de ``rank`` (``\"Panthera\"`` si ``rank=genus``).",
+      "properties": {
+        "class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Class"
+        },
+        "common_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Common Name"
+        },
+        "family": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Family"
+        },
+        "genus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Genus"
+        },
+        "label_id": {
+          "minLength": 1,
+          "title": "Label Id",
+          "type": "string"
+        },
+        "label_raw": {
+          "minLength": 1,
+          "title": "Label Raw",
+          "type": "string"
+        },
+        "order": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Order"
+        },
+        "rank": {
+          "$ref": "#/$defs/Rank"
+        },
+        "scientific_name": {
+          "minLength": 1,
+          "title": "Scientific Name",
+          "type": "string"
+        },
+        "species": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Species"
+        }
+      },
+      "required": [
+        "label_id",
+        "label_raw",
+        "scientific_name",
+        "rank"
+      ],
+      "title": "Taxonomy",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "alternatives": {
+      "items": {
+        "$ref": "#/$defs/Alternative"
+      },
+      "maxItems": 3,
+      "title": "Alternatives",
+      "type": "array"
+    },
+    "captured_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Captured At"
+    },
+    "captured_at_source": {
+      "$ref": "#/$defs/CaptureSource"
+    },
+    "category": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Category"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confidence"
+    },
+    "desktop_action": {
+      "$ref": "#/$defs/DesktopAction"
+    },
+    "duration_seconds": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Duration Seconds"
+    },
+    "error_code": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Code"
+    },
+    "evidence": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EvidenceRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "file_name": {
+      "minLength": 1,
+      "title": "File Name",
+      "type": "string"
+    },
+    "file_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "File Sha256",
+      "type": "string"
+    },
+    "file_size_bytes": {
+      "minimum": 0,
+      "title": "File Size Bytes",
+      "type": "integer"
+    },
+    "frames_analyzed": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Frames Analyzed"
+    },
+    "media_type": {
+      "$ref": "#/$defs/MediaType"
+    },
+    "status": {
+      "$ref": "#/$defs/LineStatus"
+    },
+    "taxonomy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Taxonomy"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "file_name",
+    "file_sha256",
+    "file_size_bytes",
+    "media_type",
+    "captured_at_source",
+    "status",
+    "desktop_action"
+  ],
+  "title": "PackageLine",
+  "type": "object"
+}

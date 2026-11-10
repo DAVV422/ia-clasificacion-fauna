@@ -1,0 +1,48 @@
+{
+  "status": "success",
+  "data": {
+    "media": {
+      "file_name": "IMG_0042.JPG",
+      "media_type": "image",
+      "sha256": "1613d55c09ac335fcfb471097fdce2b6f47b6c490b853fde30468843d94b37b5",
+      "size_bytes": 2400000,
+      "duration_seconds": null,
+      "fps": null,
+      "width": 4000,
+      "height": 3000
+    },
+    "capture": {
+      "captured_at": "2026-03-15T11:02:00",
+      "source": "exif"
+    },
+    "result": {
+      "category": "blank",
+      "taxonomy": null,
+      "confidence": 0.97,
+      "alternatives": []
+    },
+    "evidence": null,
+    "analysis": {
+      "frames_sampled": 1,
+      "frames_with_animal": 0,
+      "frames_discarded": {
+        "duplicate": 0,
+        "blurry": 0
+      },
+      "votes": [],
+      "processing_ms": 2100
+    },
+    "model": {
+      "detector": "MDv5a",
+      "classifier": "speciesnet-4.0.2a",
+      "sampling": "image",
+      "pipeline_version": "1.0.0"
+    }
+  },
+  "message": "Archivo clasificado",
+  "error": null,
+  "meta": {
+    "request_id": "fixture-blank-image",
+    "timestamp": "2026-11-09T12:00:00Z"
+  }
+}

@@ -1,0 +1,323 @@
+{
+  "$comment": "wwm_pipeline contract 1.0.0 — generado por tools/export_schemas.py, no editar",
+  "$defs": {
+    "CameraInfo": {
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "maxLength": 50,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code"
+        },
+        "deployed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deployed At"
+        },
+        "latitude": {
+          "anyOf": [
+            {
+              "maximum": 90,
+              "minimum": -90,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latitude"
+        },
+        "longitude": {
+          "anyOf": [
+            {
+              "maximum": 180,
+              "minimum": -180,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Longitude"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "observations": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observations"
+        },
+        "retrieved_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retrieved At"
+        },
+        "still_installed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Still Installed"
+        }
+      },
+      "title": "CameraInfo",
+      "type": "object"
+    },
+    "Counts": {
+      "properties": {
+        "animal": {
+          "minimum": 0,
+          "title": "Animal",
+          "type": "integer"
+        },
+        "blank": {
+          "minimum": 0,
+          "title": "Blank",
+          "type": "integer"
+        },
+        "error": {
+          "minimum": 0,
+          "title": "Error",
+          "type": "integer"
+        },
+        "evidence_files": {
+          "minimum": 0,
+          "title": "Evidence Files",
+          "type": "integer"
+        },
+        "lines": {
+          "minimum": 0,
+          "title": "Lines",
+          "type": "integer"
+        },
+        "person": {
+          "minimum": 0,
+          "title": "Person",
+          "type": "integer"
+        },
+        "vehicle": {
+          "minimum": 0,
+          "title": "Vehicle",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "lines",
+        "animal",
+        "person",
+        "vehicle",
+        "blank",
+        "error",
+        "evidence_files"
+      ],
+      "title": "Counts",
+      "type": "object"
+    },
+    "DesktopActionType": {
+      "enum": [
+        "copy",
+        "move",
+        "left_in_place"
+      ],
+      "title": "DesktopActionType",
+      "type": "string"
+    },
+    "ModelInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "classifier": {
+          "minLength": 1,
+          "title": "Classifier",
+          "type": "string"
+        },
+        "detector": {
+          "minLength": 1,
+          "title": "Detector",
+          "type": "string"
+        },
+        "pipeline_version": {
+          "minLength": 1,
+          "title": "Pipeline Version",
+          "type": "string"
+        },
+        "sampling": {
+          "minLength": 1,
+          "title": "Sampling",
+          "type": "string"
+        }
+      },
+      "required": [
+        "detector",
+        "classifier",
+        "sampling",
+        "pipeline_version"
+      ],
+      "title": "ModelInfo",
+      "type": "object"
+    },
+    "RunInfo": {
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/DesktopActionType"
+        },
+        "finished_at": {
+          "format": "date-time",
+          "title": "Finished At",
+          "type": "string"
+        },
+        "job_id": {
+          "title": "Job Id",
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "title": "Started At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "job_id",
+        "started_at",
+        "finished_at",
+        "action"
+      ],
+      "title": "RunInfo",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "app_version": {
+      "title": "App Version",
+      "type": "string"
+    },
+    "camera": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CameraInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "camera_code": {
+      "anyOf": [
+        {
+          "maxLength": 50,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Camera Code"
+    },
+    "checksums": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Checksums",
+      "type": "object"
+    },
+    "counts": {
+      "$ref": "#/$defs/Counts"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "device_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Device Id",
+      "type": "string"
+    },
+    "format": {
+      "title": "Format",
+      "type": "string"
+    },
+    "format_version": {
+      "pattern": "^\\d+\\.\\d+$",
+      "title": "Format Version",
+      "type": "string"
+    },
+    "model": {
+      "$ref": "#/$defs/ModelInfo"
+    },
+    "run": {
+      "$ref": "#/$defs/RunInfo"
+    },
+    "source_folder_name": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Source Folder Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "format",
+    "format_version",
+    "app_version",
+    "created_at",
+    "device_id",
+    "source_folder_name",
+    "run",
+    "model",
+    "counts",
+    "checksums"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}

@@ -1,0 +1,14 @@
+{
+  "status": "error",
+  "data": null,
+  "message": "API key ausente o incorrecta.",
+  "error": {
+    "code": "IA_UNAUTHORIZED",
+    "flow": "FL-08",
+    "details": []
+  },
+  "meta": {
+    "request_id": "fixture-error-unauthorized",
+    "timestamp": "2026-11-09T12:00:00Z"
+  }
+}

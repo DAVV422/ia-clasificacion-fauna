@@ -1,0 +1,21 @@
+{
+  "status": "error",
+  "data": null,
+  "message": "No se pudo leer el archivo (puede estar dañado).",
+  "error": {
+    "code": "IA_DECODE_FAILED",
+    "flow": "FL-08",
+    "details": [
+      {
+        "code": "IA_DECODE_FAILED",
+        "context": {
+          "reason": "moov atom not found"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "request_id": "fixture-error-decode",
+    "timestamp": "2026-11-09T12:00:00Z"
+  }
+}

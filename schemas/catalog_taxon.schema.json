@@ -1,0 +1,112 @@
+{
+  "$comment": "wwm_pipeline contract 1.0.0 — generado por tools/export_schemas.py, no editar",
+  "$defs": {
+    "Rank": {
+      "description": "Nivel taxonómico alcanzado, de más general a más específico.",
+      "enum": [
+        "class",
+        "order",
+        "family",
+        "genus",
+        "species"
+      ],
+      "title": "Rank",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "class": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Class"
+    },
+    "common_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Common Name"
+    },
+    "family": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Family"
+    },
+    "genus": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Genus"
+    },
+    "label_id": {
+      "minLength": 1,
+      "title": "Label Id",
+      "type": "string"
+    },
+    "order": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Order"
+    },
+    "rank": {
+      "$ref": "#/$defs/Rank"
+    },
+    "scientific_name": {
+      "minLength": 1,
+      "title": "Scientific Name",
+      "type": "string"
+    },
+    "species": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Species"
+    }
+  },
+  "required": [
+    "label_id",
+    "rank",
+    "scientific_name"
+  ],
+  "title": "CatalogTaxon",
+  "type": "object"
+}
