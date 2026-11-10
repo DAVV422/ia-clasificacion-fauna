@@ -1,0 +1,232 @@
+{
+  "generated_with": "eval.legacy (prototipo v1, commit c6dac6e)",
+  "samples_dir_name": "legacy_samples",
+  "files": [
+    {
+      "file_name": "muestra_1.jpg",
+      "sha256": "ce1471dbb72192409c7d5600f7f002a11ff46420af206d0f685162519f2bcf63",
+      "frames": [
+        0
+      ],
+      "detections": [
+        {
+          "class_name": "animal",
+          "confidence": 0.9486,
+          "box": [
+            0.0,
+            0.0,
+            1.0,
+            1.0
+          ],
+          "species": [
+            {
+              "species": "panthera;onca;jaguar",
+              "confidence": 0.9644
+            },
+            {
+              "species": "panthera;pardus;leopard",
+              "confidence": 0.0188
+            },
+            {
+              "species": ";;blank",
+              "confidence": 0.0074
+            },
+            {
+              "species": "leopardus;pardalis;ocelot",
+              "confidence": 0.002
+            },
+            {
+              "species": ";;bird",
+              "confidence": 0.0017
+            }
+          ]
+        }
+      ],
+      "decision": {
+        "label": "panthera;onca;jaguar",
+        "confidence": 0.9644
+      }
+    },
+    {
+      "file_name": "muestra_2.jpg",
+      "sha256": "1f702d142e6fdbb6cc1a07e049e506f3be16606a4dd7469fc772152b235458bd",
+      "frames": [
+        0
+      ],
+      "detections": [
+        {
+          "class_name": "animal",
+          "confidence": 0.8611,
+          "box": [
+            0.0,
+            0.0,
+            0.8302,
+            0.9945
+          ],
+          "species": [
+            {
+              "species": "panthera;onca;jaguar",
+              "confidence": 0.9994
+            },
+            {
+              "species": ";;blank",
+              "confidence": 0.0001
+            },
+            {
+              "species": "tapirus;indicus;malay tapir",
+              "confidence": 0.0001
+            },
+            {
+              "species": "neofelis;nebulosa;clouded leopard",
+              "confidence": 0.0001
+            },
+            {
+              "species": "leopardus;pardalis;ocelot",
+              "confidence": 0.0
+            }
+          ]
+        }
+      ],
+      "decision": {
+        "label": "panthera;onca;jaguar",
+        "confidence": 0.9994
+      }
+    },
+    {
+      "file_name": "muestra_3.jpg",
+      "sha256": "aee121d7d82bf259e2995dd3e28d5c1ba35b5089304999cf9e71bbc03b5ce008",
+      "frames": [
+        0
+      ],
+      "detections": [
+        {
+          "class_name": "animal",
+          "confidence": 0.9097,
+          "box": [
+            0.0074,
+            0.0,
+            0.9889,
+            0.9983
+          ],
+          "species": [
+            {
+              "species": "myrmecophaga;tridactyla;giant anteater",
+              "confidence": 1.0
+            },
+            {
+              "species": "taxidea;taxus;american badger",
+              "confidence": 0.0
+            },
+            {
+              "species": "mellivora;capensis;honey badger",
+              "confidence": 0.0
+            },
+            {
+              "species": "tamandua;tetradactyla;southern tamandua",
+              "confidence": 0.0
+            },
+            {
+              "species": "canis;;canis species",
+              "confidence": 0.0
+            }
+          ]
+        }
+      ],
+      "decision": {
+        "label": "myrmecophaga;tridactyla;giant anteater",
+        "confidence": 1.0
+      }
+    },
+    {
+      "file_name": "muestra_4.jpg",
+      "sha256": "7e70d5f32148d18bff433274ed85adc2e7d9f0946284a81cae7099c7ca0c40a7",
+      "frames": [
+        0
+      ],
+      "detections": [
+        {
+          "class_name": "animal",
+          "confidence": 0.8987,
+          "box": [
+            0.0036,
+            0.0099,
+            0.9928,
+            0.9783
+          ],
+          "species": [
+            {
+              "species": "panthera;onca;jaguar",
+              "confidence": 0.9998
+            },
+            {
+              "species": "neofelis;nebulosa;clouded leopard",
+              "confidence": 0.0002
+            },
+            {
+              "species": "neofelis;diardi;sunda clouded leopard",
+              "confidence": 0.0
+            },
+            {
+              "species": "tapirus;indicus;malay tapir",
+              "confidence": 0.0
+            },
+            {
+              "species": "leopardus;pardalis;ocelot",
+              "confidence": 0.0
+            }
+          ]
+        }
+      ],
+      "decision": {
+        "label": "panthera;onca;jaguar",
+        "confidence": 0.9998
+      }
+    },
+    {
+      "file_name": "muestra_video.mp4",
+      "sha256": "42179f6a48a2742737b9b52795d2e90973376c1d7a64203a5a82ce6eee94f37a",
+      "frames": [
+        75,
+        150
+      ],
+      "detections": [
+        {
+          "class_name": "animal",
+          "confidence": 0.9111,
+          "box": [
+            0.0125,
+            0.0,
+            0.9979,
+            0.9984
+          ],
+          "species": [
+            {
+              "species": "myrmecophaga;tridactyla;giant anteater",
+              "confidence": 0.9999
+            },
+            {
+              "species": "taxidea;taxus;american badger",
+              "confidence": 0.0001
+            },
+            {
+              "species": "mellivora;capensis;honey badger",
+              "confidence": 0.0
+            },
+            {
+              "species": "canis;;canis species",
+              "confidence": 0.0
+            },
+            {
+              "species": "tamandua;tetradactyla;southern tamandua",
+              "confidence": 0.0
+            }
+          ]
+        }
+      ],
+      "decision": {
+        "label": "myrmecophaga;tridactyla;giant anteater",
+        "confidence": 0.9999
+      }
+    }
+  ]
+}
