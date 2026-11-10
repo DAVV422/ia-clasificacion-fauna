@@ -18,8 +18,11 @@ from wwm_pipeline.package_validator import (
 )
 
 PKG = Path(__file__).resolve().parents[1] / "fixtures/package"
-CATALOG = json.loads((Path(__file__).resolve().parents[1] / "fixtures/catalog/speciesnet_catalog.sample.json")
-                     .read_text(encoding="utf-8"))
+CATALOG = json.loads(
+    (Path(__file__).resolve().parents[1] / "fixtures/catalog/speciesnet_catalog.sample.json").read_text(
+        encoding="utf-8"
+    )
+)
 CATALOG_IDS = {t["label_id"] for t in CATALOG["taxa"]}
 
 
@@ -41,7 +44,14 @@ def test_manifest_counts_match_lines():
         lines = [PackageLine.model_validate_json(t) for t in zf.read("classifications.jsonl").decode().splitlines()]
     counts = count_lines(lines)
     assert counts == manifest.counts
-    assert (counts.animal, counts.blank, counts.person, counts.vehicle, counts.error, counts.evidence_files) == (7, 2, 1, 1, 1, 9)
+    assert (counts.animal, counts.blank, counts.person, counts.vehicle, counts.error, counts.evidence_files) == (
+        7,
+        2,
+        1,
+        1,
+        1,
+        9,
+    )
 
 
 FATAL = {

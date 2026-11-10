@@ -20,9 +20,9 @@ MDV5_CLASSES = {0: "animal", 1: "person", 2: "vehicle"}
 
 @dataclass(frozen=True)
 class Box:
-    category: str                         # animal | person | vehicle
-    confidence: float                     # redondeada a 4 decimales, como el prototipo
-    pixels: Tuple[int, int, int, int]     # x1, y1, x2, y2 absolutos, recortados al frame
+    category: str  # animal | person | vehicle
+    confidence: float  # redondeada a 4 decimales, como el prototipo
+    pixels: Tuple[int, int, int, int]  # x1, y1, x2, y2 absolutos, recortados al frame
     box_norm: Tuple[float, float, float, float]  # [ymin, xmin, ymax, xmax] normalizado (formato del prototipo)
 
 

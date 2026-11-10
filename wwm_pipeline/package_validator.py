@@ -140,15 +140,36 @@ def validate_package(
             report.lines.append(line)
             if catalog_label_ids is not None and line.taxonomy is not None:
                 if line.taxonomy.label_id not in catalog_label_ids:
-                    report.issues.append(Issue(number, line.file_name, "error", CATALOG_TAXON_NOT_FOUND,
-                                               f"El taxón {line.taxonomy.label_id} no está en el catálogo"))
+                    report.issues.append(
+                        Issue(
+                            number,
+                            line.file_name,
+                            "error",
+                            CATALOG_TAXON_NOT_FOUND,
+                            f"El taxón {line.taxonomy.label_id} no está en el catálogo",
+                        )
+                    )
             if line.evidence is not None:
                 if line.evidence.file not in names:
-                    report.issues.append(Issue(number, line.file_name, "error", EVIDENCE_MISSING,
-                                               f"Falta {line.evidence.file} en el paquete"))
+                    report.issues.append(
+                        Issue(
+                            number,
+                            line.file_name,
+                            "error",
+                            EVIDENCE_MISSING,
+                            f"Falta {line.evidence.file} en el paquete",
+                        )
+                    )
                 elif check_images and not _is_valid_jpeg(zf.read(line.evidence.file)):
-                    report.issues.append(Issue(number, line.file_name, "error", EVIDENCE_INVALID,
-                                               "El fotograma no es una imagen JPEG válida"))
+                    report.issues.append(
+                        Issue(
+                            number,
+                            line.file_name,
+                            "error",
+                            EVIDENCE_INVALID,
+                            "El fotograma no es una imagen JPEG válida",
+                        )
+                    )
 
         # --- counts del manifiesto contra el contenido ---
         all_lines_valid = not any(i.code == LINE_INVALID for i in report.issues)

@@ -34,8 +34,16 @@ def system_info() -> Dict[str, str]:
     return info
 
 
-def write_report(config: str, split: str, labels: List[Label], metrics: Metrics, models: Dict[str, str],
-                 observations: str = "", out_dir: Path = REPORTS_DIR, day: str = "") -> Path:
+def write_report(
+    config: str,
+    split: str,
+    labels: List[Label],
+    metrics: Metrics,
+    models: Dict[str, str],
+    observations: str = "",
+    out_dir: Path = REPORTS_DIR,
+    day: str = "",
+) -> Path:
     day = day or date.today().isoformat()
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = f"{day}_{config}"
@@ -44,20 +52,33 @@ def write_report(config: str, split: str, labels: List[Label], metrics: Metrics,
     for lab in labels:
         by_cat[lab.label_category] = by_cat.get(lab.label_category, 0) + 1
 
-    payload = {"config": config, "split": split, "date": day, "models": models, "system": sysinfo,
-               "set": {"files": len(labels), "by_category": by_cat}, "metrics": metrics.to_dict(),
-               "false_negatives": metrics.false_negatives, "false_positives": metrics.false_positives,
-               "errors": metrics.errors, "confusion": metrics.confusion}
+    payload = {
+        "config": config,
+        "split": split,
+        "date": day,
+        "models": models,
+        "system": sysinfo,
+        "set": {"files": len(labels), "by_category": by_cat},
+        "metrics": metrics.to_dict(),
+        "false_negatives": metrics.false_negatives,
+        "false_positives": metrics.false_positives,
+        "errors": metrics.errors,
+        "confusion": metrics.confusion,
+    }
     (out_dir / f"{stem}.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
     s, g, f = metrics.species, metrics.genus, metrics.family
     lines = [
-        f"# Evaluación · `{config}` · {day}", "",
+        f"# Evaluación · `{config}` · {day}",
+        "",
         f"- **Split:** `{split}` · **Archivos:** {len(labels)} ({', '.join(f'{k}: {v}' for k, v in sorted(by_cat.items()))})",
         f"- **Modelos:** {', '.join(f'{k} {v}' for k, v in models.items())}",
-        f"- **Equipo:** {', '.join(f'{k} {v}' for k, v in sysinfo.items())}", "",
-        "## Métricas", "",
-        "| Métrica | Valor | Detalle |", "|---|---|---|",
+        f"- **Equipo:** {', '.join(f'{k} {v}' for k, v in sysinfo.items())}",
+        "",
+        "## Métricas",
+        "",
+        "| Métrica | Valor | Detalle |",
+        "|---|---|---|",
         f"| Acierto de categoría (animal, persona, vehículo, vacío) | {_pct(metrics.category_accuracy)} | sobre {metrics.files - len(metrics.errors)} archivos |",
         f"| Acierto de especie | {_pct(s.accuracy)} | {s.correct} de {s.evaluated} · {s.wrong} errores · {s.not_reached} no llegaron a especie |",
         f"| Acierto de género | {_pct(g.accuracy)} | {g.correct} de {g.evaluated} · {g.wrong} errores · {g.not_reached} no llegaron |",
@@ -66,12 +87,20 @@ def write_report(config: str, split: str, labels: List[Label], metrics: Metrics,
         f"| Falsos positivos (vacío clasificado como animal) | {len(metrics.false_positives)} | |",
         f"| Archivos con error | {len(metrics.errors)} | |",
         f"| Tiempo por archivo | media {metrics.mean_ms} ms · p90 {metrics.p90_ms} ms | |",
-        f"| Fotogramas analizados por archivo | media {metrics.mean_frames} | |", "",
+        f"| Fotogramas analizados por archivo | media {metrics.mean_frames} | |",
+        "",
     ]
     if metrics.confusion:
-        lines += ["## Matriz de confusión (las 10 especies más frecuentes)", "", "| Etiqueta | Predicciones |", "|---|---|"]
+        lines += [
+            "## Matriz de confusión (las 10 especies más frecuentes)",
+            "",
+            "| Etiqueta | Predicciones |",
+            "|---|---|",
+        ]
         for truth, preds in metrics.confusion.items():
-            lines.append(f"| {truth} | " + ", ".join(f"{p} ({n})" for p, n in sorted(preds.items(), key=lambda x: -x[1])) + " |")
+            lines.append(
+                f"| {truth} | " + ", ".join(f"{p} ({n})" for p, n in sorted(preds.items(), key=lambda x: -x[1])) + " |"
+            )
         lines.append("")
     if metrics.false_negatives:
         lines += ["## Falsos negativos", "", "| Archivo | Lo que dio |", "|---|---|"]

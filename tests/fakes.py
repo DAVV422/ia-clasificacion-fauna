@@ -11,8 +11,13 @@ PUMA = "9c564562-9429-405c-8529-04cff7752282;mammalia;carnivora;felidae;puma;con
 class FakeModels:
     """Detecta un animal en los frames cuya media de brillo supera ``bright_threshold``."""
 
-    def __init__(self, bright_threshold: float = 100.0, labels: Optional[List[str]] = None,
-                 scores: Optional[List[float]] = None, category_id: int = 0):
+    def __init__(
+        self,
+        bright_threshold: float = 100.0,
+        labels: Optional[List[str]] = None,
+        scores: Optional[List[float]] = None,
+        category_id: int = 0,
+    ):
         self.bright_threshold = bright_threshold
         self.labels = labels or [JAGUAR, PUMA]
         self.scores = scores or [0.91, 0.05]

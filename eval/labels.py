@@ -11,7 +11,16 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 LABELS_CSV = Path(__file__).resolve().parent / "labels.csv"
-COLUMNS = ["file_name", "sha256", "media_type", "label_category", "label_scientific_name", "label_rank", "split", "notes"]
+COLUMNS = [
+    "file_name",
+    "sha256",
+    "media_type",
+    "label_category",
+    "label_scientific_name",
+    "label_rank",
+    "split",
+    "notes",
+]
 CATEGORIES = {"animal", "person", "vehicle", "blank"}
 RANKS = {"species", "genus", "family", "order", "class", ""}
 MEDIA = {"image", "video"}

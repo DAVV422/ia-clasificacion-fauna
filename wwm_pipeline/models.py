@@ -41,14 +41,19 @@ class Models(Protocol):
 class ModelRegistry:
     """Modelos reales. ``load()`` es idempotente: carga cada modelo una sola vez."""
 
-    def __init__(self, detector_path: Path, classifier_model: str = SPECIESNET_MODEL_NAME,
-                 device: Optional[str] = None, md_threshold: float = 0.30):
+    def __init__(
+        self,
+        detector_path: Path,
+        classifier_model: str = SPECIESNET_MODEL_NAME,
+        device: Optional[str] = None,
+        md_threshold: float = 0.30,
+    ):
         self.detector_path = Path(detector_path)
         self.classifier_model = classifier_model
         self.md_threshold = md_threshold
         self._device = device
-        self.detector = None
-        self.classifier = None
+        self.detector: Any = None
+        self.classifier: Any = None
         self.load_count = 0
 
     @property
@@ -80,24 +85,37 @@ class ModelRegistry:
         path = str(self.detector_path.resolve())
         logger.info("Cargando MegaDetector desde %s", path)
         try:
-            model = torch.hub.load("ultralytics/yolov5", "custom", path=path, device=self.device,
-                                   force_reload=False, trust_repo=True)
+            model = torch.hub.load(
+                "ultralytics/yolov5", "custom", path=path, device=self.device, force_reload=False, trust_repo=True
+            )
         except Exception as exc:  # mismo reintento que el prototipo (fase 0)
             logger.warning("torch.hub falló (%s); reintentando con force_reload", exc)
-            model = torch.hub.load("ultralytics/yolov5", "custom", path=path, device=self.device,
-                                   force_reload=True, trust_repo=True)
+            model = torch.hub.load(
+                "ultralytics/yolov5", "custom", path=path, device=self.device, force_reload=True, trust_repo=True
+            )
         model.conf = self.md_threshold
         return model
 
     def run_detector(self, frame_rgb) -> List[RawBox]:
         self.load()
         df = self.detector(frame_rgb).pandas().xyxy[0]  # type: ignore[misc]
-        return [RawBox(float(r["xmin"]), float(r["ymin"]), float(r["xmax"]), float(r["ymax"]),
-                       float(r["confidence"]), int(r["class"]), str(r["name"])) for _, r in df.iterrows()]
+        return [
+            RawBox(
+                float(r["xmin"]),
+                float(r["ymin"]),
+                float(r["xmax"]),
+                float(r["ymax"]),
+                float(r["confidence"]),
+                int(r["class"]),
+                str(r["name"]),
+            )
+            for _, r in df.iterrows()
+        ]
 
     def run_classifier(self, crop_pil, filepath: str) -> Optional[dict]:
         self.load()
-        preprocessed = self.classifier.preprocess(crop_pil, bboxes=None)  # type: ignore[union-attr]
+        classifier: Any = self.classifier
+        preprocessed = classifier.preprocess(crop_pil, bboxes=None)
         if preprocessed is None:
             return None
-        return self.classifier.predict(filepath=filepath, img=preprocessed)  # type: ignore[union-attr]
+        return classifier.predict(filepath=filepath, img=preprocessed)

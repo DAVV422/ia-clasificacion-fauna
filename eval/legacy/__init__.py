@@ -100,12 +100,26 @@ def classify_legacy(file_path: Path, taxonomy_index=None) -> Prediction:
         label, conf = resolve_species_legacy(animal)
         info = taxonomy_index.lookup_short(label) if (taxonomy_index and label) else None
         return Prediction(
-            file_name=Path(file_path).name, category="animal", raw_label=label, confidence=round(conf, 4),
-            scientific_name=info.scientific_name if info else None, rank=info.rank.value if info else None,
-            genus=info.genus if info else None, family=info.family if info else None,
-            frames_analyzed=len(frames), frames=frames, processing_ms=ms,
+            file_name=Path(file_path).name,
+            category="animal",
+            raw_label=label,
+            confidence=round(conf, 4),
+            scientific_name=info.scientific_name if info else None,
+            rank=info.rank.value if info else None,
+            genus=info.genus if info else None,
+            family=info.family if info else None,
+            frames_analyzed=len(frames),
+            frames=frames,
+            processing_ms=ms,
         )
     classes = {d.get("class_name") for d in detections}
     category = "person" if "person" in classes else "vehicle" if "vehicle" in classes else "blank"
-    return Prediction(file_name=Path(file_path).name, category=category, raw_label=None, confidence=0.0,
-                      frames_analyzed=len(frames), frames=frames, processing_ms=ms)
+    return Prediction(
+        file_name=Path(file_path).name,
+        category=category,
+        raw_label=None,
+        confidence=0.0,
+        frames_analyzed=len(frames),
+        frames=frames,
+        processing_ms=ms,
+    )

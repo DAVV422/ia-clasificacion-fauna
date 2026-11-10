@@ -29,7 +29,9 @@ def render() -> Dict[str, str]:
     out = {}
     for name, model in MODELS.items():
         schema = model.model_json_schema(by_alias=True)
-        schema["$comment"] = f"wwm_pipeline contract {CONTRACT_VERSION} — generado por tools/export_schemas.py, no editar"
+        schema["$comment"] = (
+            f"wwm_pipeline contract {CONTRACT_VERSION} — generado por tools/export_schemas.py, no editar"
+        )
         out[f"{name}.schema.json"] = json.dumps(schema, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     return out
 

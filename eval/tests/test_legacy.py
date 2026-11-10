@@ -1,12 +1,12 @@
 """HU-IA-10 · CA-4, CA-8 — la copia congelada reproduce el prototipo (requiere modelos y muestras)."""
 
 import json
-import os
 from pathlib import Path
 
 import pytest
 
-from eval.legacy.make_expected import OUT as EXPECTED, describe, samples_dir
+from eval.legacy.make_expected import OUT as EXPECTED
+from eval.legacy.make_expected import describe, samples_dir
 
 pytestmark = pytest.mark.integration
 

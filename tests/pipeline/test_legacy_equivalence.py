@@ -14,9 +14,13 @@ EXPECTED = ROOT / "eval/legacy/expected.json"
 SAMPLES = Path(os.getenv("LEGACY_SAMPLES_DIR", str(Path(os.getenv("EVAL_DATA_DIR", "")) / "legacy_samples")))
 MD = ROOT / "models/md_v5a.0.0.pt"
 
-pytestmark = [pytest.mark.integration,
-              pytest.mark.skipif(not (EXPECTED.exists() and SAMPLES.is_dir() and MD.exists()),
-                                 reason="requiere expected.json, las muestras y los modelos")]
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not (EXPECTED.exists() and SAMPLES.is_dir() and MD.exists()),
+        reason="requiere expected.json, las muestras y los modelos",
+    ),
+]
 
 
 @pytest.fixture(scope="module")

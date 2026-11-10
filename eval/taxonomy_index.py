@@ -6,7 +6,8 @@ from typing import Dict, Optional
 from wwm_pipeline.catalog_schema import CatalogTaxon, parse_label
 
 DEFAULT_LABELS = (
-    Path.home() / ".cache/kagglehub/models/google/speciesnet/pyTorch/v4.0.2a/1"
+    Path.home()
+    / ".cache/kagglehub/models/google/speciesnet/pyTorch/v4.0.2a/1"
     / "always_crop_99710272_22x8_v12_epoch_00148.labels.20251208.txt"
 )
 

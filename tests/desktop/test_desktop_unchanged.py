@@ -1,6 +1,6 @@
 """HU-IA-40 · CA-3 — la app de escritorio decide la misma carpeta que el prototipo para cada archivo.
 
-Usa la lógica real de ``desktop_app.WildlifeDesktopApp`` (``_process_file`` + ``_resolve_species``)
+Usa la lógica real de ``desktop.ui.legacy_window.WildlifeDesktopApp`` (``_process_file`` + ``_resolve_species``)
 sin abrir la ventana, y la compara con lo que hacía el prototipo (``eval/legacy/expected.json``).
 """
 
@@ -14,9 +14,13 @@ ROOT = Path(__file__).resolve().parents[2]
 EXPECTED = ROOT / "eval/legacy/expected.json"
 SAMPLES = Path(os.getenv("LEGACY_SAMPLES_DIR", str(Path(os.getenv("EVAL_DATA_DIR", "")) / "legacy_samples")))
 
-pytestmark = [pytest.mark.integration,
-              pytest.mark.skipif(not (EXPECTED.exists() and SAMPLES.is_dir() and (ROOT / "models/md_v5a.0.0.pt").exists()),
-                                 reason="requiere expected.json, las muestras y los modelos")]
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not (EXPECTED.exists() and SAMPLES.is_dir() and (ROOT / "models/md_v5a.0.0.pt").exists()),
+        reason="requiere expected.json, las muestras y los modelos",
+    ),
+]
 
 
 def prototype_folder(label) -> str:
@@ -29,8 +33,8 @@ def prototype_folder(label) -> str:
 
 
 def test_desktop_destination_unchanged():
-    import desktop_app
     from app.detector import WildlifeDetector
+    from desktop.ui import legacy_window as desktop_app
 
     app = desktop_app.WildlifeDesktopApp.__new__(desktop_app.WildlifeDesktopApp)  # sin crear la ventana
     app.detector = WildlifeDetector()

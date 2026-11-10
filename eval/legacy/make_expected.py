@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 from eval.labels import file_sha256
-from eval.legacy import classify_legacy, process_file_legacy, resolve_species_legacy
+from eval.legacy import process_file_legacy, resolve_species_legacy
 from eval.legacy.config_legacy import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 
 OUT = Path(__file__).resolve().parent / "expected.json"
@@ -36,8 +36,12 @@ def describe(path: Path) -> dict:
         "sha256": file_sha256(path),
         "frames": frames,
         "detections": [
-            {"class_name": d["class_name"], "confidence": d["confidence"], "box": d["box"],
-             "species": d.get("species", [])[:5]}
+            {
+                "class_name": d["class_name"],
+                "confidence": d["confidence"],
+                "box": d["box"],
+                "species": d.get("species", [])[:5],
+            }
             for d in detections
         ],
         "decision": {"label": label, "confidence": conf},
@@ -51,8 +55,11 @@ def main() -> int:
         print(f"No hay muestras en {folder}", file=sys.stderr)
         return 2
     results = [describe(p) for p in files]
-    payload = {"generated_with": "eval.legacy (prototipo v1, commit c6dac6e)", "samples_dir_name": folder.name,
-               "files": results}
+    payload = {
+        "generated_with": "eval.legacy (prototipo v1, commit c6dac6e)",
+        "samples_dir_name": folder.name,
+        "files": results,
+    }
     OUT.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for r in results:
         print(f"{r['file_name']}: frames={r['frames']} decision={r['decision']}")

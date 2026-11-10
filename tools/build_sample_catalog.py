@@ -13,22 +13,46 @@ import json
 import sys
 from pathlib import Path
 
-from wwm_pipeline.catalog_schema import Catalog, parse_label
 from tools._fixture_taxa import FIXTURE_LABELS
+from wwm_pipeline.catalog_schema import Catalog, parse_label
 
 CLASSIFIER = "speciesnet-4.0.2a"
 DEFAULT_LABELS = (
-    Path.home() / ".cache/kagglehub/models/google/speciesnet/pyTorch/v4.0.2a/1"
+    Path.home()
+    / ".cache/kagglehub/models/google/speciesnet/pyTorch/v4.0.2a/1"
     / "always_crop_99710272_22x8_v12_epoch_00148.labels.20251208.txt"
 )
 NEOTROPICAL_FAMILIES = {
     # mamíferos
-    "felidae", "canidae", "mustelidae", "procyonidae", "mephitidae", "tapiridae", "tayassuidae",
-    "cervidae", "dasyproctidae", "cuniculidae", "caviidae", "erethizontidae", "sciuridae",
-    "didelphidae", "myrmecophagidae", "dasypodidae", "chlamyphoridae", "bradypodidae",
-    "megalonychidae", "atelidae", "cebidae", "callitrichidae", "aotidae", "pitheciidae",
+    "felidae",
+    "canidae",
+    "mustelidae",
+    "procyonidae",
+    "mephitidae",
+    "tapiridae",
+    "tayassuidae",
+    "cervidae",
+    "dasyproctidae",
+    "cuniculidae",
+    "caviidae",
+    "erethizontidae",
+    "sciuridae",
+    "didelphidae",
+    "myrmecophagidae",
+    "dasypodidae",
+    "chlamyphoridae",
+    "bradypodidae",
+    "megalonychidae",
+    "atelidae",
+    "cebidae",
+    "callitrichidae",
+    "aotidae",
+    "pitheciidae",
     # aves terrestres frecuentes en cámaras trampa
-    "cracidae", "tinamidae", "psophiidae", "rallidae",
+    "cracidae",
+    "tinamidae",
+    "psophiidae",
+    "rallidae",
 }
 OUT = Path(__file__).resolve().parent.parent / "tests/fixtures/catalog/speciesnet_catalog.sample.json"
 
@@ -46,8 +70,9 @@ def build(labels_path: Path) -> Catalog:
             taxa.append(taxon)
     taxa.sort(key=lambda t: (t.class_ or "", t.order or "", t.family or "", t.genus or "", t.species or ""))
     payload = json.dumps([t.model_dump(by_alias=True) for t in taxa], sort_keys=True, ensure_ascii=False)
-    return Catalog(classifier=CLASSIFIER, count=len(taxa),
-                   sha256=hashlib.sha256(payload.encode("utf-8")).hexdigest(), taxa=taxa)
+    return Catalog(
+        classifier=CLASSIFIER, count=len(taxa), sha256=hashlib.sha256(payload.encode("utf-8")).hexdigest(), taxa=taxa
+    )
 
 
 def main() -> None:

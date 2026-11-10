@@ -34,8 +34,8 @@ def write_image(path: Path, value: int = 200) -> Path:
 def test_legacy_frames_desktop_and_api():
     assert legacy_frames(300, "desktop") == [75, 150, 225]
     assert legacy_frames(300, "api") == [75, 150, 225]
-    assert legacy_frames(2, "desktop") == [0, 1]        # el escritorio analiza hasta frame_count frames
-    assert legacy_frames(2, "api") == [0, 1, 1]         # la API siempre pide 3
+    assert legacy_frames(2, "desktop") == [0, 1]  # el escritorio analiza hasta frame_count frames
+    assert legacy_frames(2, "api") == [0, 1, 1]  # la API siempre pide 3
     assert legacy_frames(0, "desktop") == [0] and legacy_frames(0, "api") == [0]
 
 
@@ -60,6 +60,7 @@ def test_blank_and_person(tmp_path):
     assert classify_file(dark, None, PipelineConfig.legacy_desktop(), FakeModels()).decision.category == "blank"
     bright = write_image(tmp_path / "person.jpg")
     from dataclasses import replace
+
     fixed = replace(PipelineConfig.legacy_desktop(), correct_class_map=True)
     person = classify_file(bright, None, fixed, FakeModels(category_id=1))
     assert person.decision.category == "person" and person.decision.label is None
@@ -68,6 +69,7 @@ def test_blank_and_person(tmp_path):
 def test_legacy_class_map_bug_is_preserved_and_fix_available():
     """El prototipo traduce persona→animal y vehículo→persona; legacy lo conserva, la tabla correcta no."""
     from wwm_pipeline.detection import map_class_name, map_class_name_correct
+
     names = {0: "animal", 1: "person", 2: "vehicle"}  # model.names de MegaDetector v5a
     assert [map_class_name(k, v) for k, v in names.items()] == ["animal", "animal", "person"]
     assert [map_class_name_correct(k, v) for k, v in names.items()] == ["animal", "person", "vehicle"]
@@ -144,8 +146,10 @@ def test_no_framework_imports():
 
 def test_import_has_no_side_effects(tmp_path):
     """CA-4: importar wwm_pipeline no crea archivos ni carpetas."""
-    code = ("import wwm_pipeline, wwm_pipeline.pipeline, wwm_pipeline.models, wwm_pipeline.config, "
-            "wwm_pipeline.contract, wwm_pipeline.package\nprint('ok')")
+    code = (
+        "import wwm_pipeline, wwm_pipeline.pipeline, wwm_pipeline.models, wwm_pipeline.config, "
+        "wwm_pipeline.contract, wwm_pipeline.package\nprint('ok')"
+    )
     env = {"PYTHONPATH": str(ROOT), "SYSTEMROOT": __import__("os").environ.get("SYSTEMROOT", "")}
     result = subprocess.run([sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True, env=env)
     assert result.returncode == 0, result.stderr

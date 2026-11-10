@@ -9,8 +9,8 @@ from typing import Any, Dict, Iterable, Optional
 
 @dataclass(frozen=True)
 class Decision:
-    category: str                 # animal | person | vehicle | blank
-    label: Optional[str]          # "género;especie;común" (formato del prototipo) o None
+    category: str  # animal | person | vehicle | blank
+    label: Optional[str]  # "género;especie;común" (formato del prototipo) o None
     confidence: float
 
 

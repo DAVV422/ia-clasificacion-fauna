@@ -50,9 +50,14 @@ class FakeSettings:
 # ---------------------------------------------------------------------------
 class _JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        payload = {"ts": datetime.now(timezone.utc).isoformat(), "level": record.levelname, "service": "ia-fake",
-                   "version": VERSION, "event": getattr(record, "event", record.getMessage()),
-                   "message": record.getMessage()}
+        payload = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "service": "ia-fake",
+            "version": VERSION,
+            "event": getattr(record, "event", record.getMessage()),
+            "message": record.getMessage(),
+        }
         payload.update(getattr(record, "ctx", {}))
         return json.dumps(payload, ensure_ascii=False)
 
@@ -82,10 +87,17 @@ def ok(request: Request, data: dict, message: str = "Archivo clasificado") -> JS
     return JSONResponse({"status": "success", "data": data, "message": message, "error": None, "meta": _meta(request)})
 
 
-def fail(request: Request, code: str, message: str, context: Optional[dict] = None, status: Optional[int] = None) -> JSONResponse:
+def fail(
+    request: Request, code: str, message: str, context: Optional[dict] = None, status: Optional[int] = None
+) -> JSONResponse:
     details = [{"code": code, "context": context}] if context else []
-    body = {"status": "error", "data": None, "message": message,
-            "error": {"code": code, "flow": request.state.flow, "details": details}, "meta": _meta(request)}
+    body = {
+        "status": "error",
+        "data": None,
+        "message": message,
+        "error": {"code": code, "flow": request.state.flow, "details": details},
+        "meta": _meta(request),
+    }
     return JSONResponse(body, status_code=status or IA_ERROR_HTTP.get(code, 500))
 
 
@@ -135,15 +147,23 @@ def create_app(settings: Optional[FakeSettings] = None) -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def _bad_request(request: Request, exc: RequestValidationError):
-        return fail(request, "IA_INVALID_FORMAT", "La petición debe incluir 'file' y 'file_name'.",
-                    {"errors": [e["loc"][-1] for e in exc.errors()]}, status=400)
+        return fail(
+            request,
+            "IA_INVALID_FORMAT",
+            "La petición debe incluir 'file' y 'file_name'.",
+            {"errors": [e["loc"][-1] for e in exc.errors()]},
+            status=400,
+        )
 
     @app.get("/api/v1/health")
     async def health(request: Request):
-        body = {"status": "ok" if ready() else "loading", "models_loaded": ready(),
-                "queue": {"size": queue.size, "pending": queue.pending},
-                "config": {"sampling": "fake", "max_video_seconds": 15, "max_file_mb": 300},
-                "version": {"pipeline": VERSION, "detector": "fake", "classifier": "fake"}}
+        body = {
+            "status": "ok" if ready() else "loading",
+            "models_loaded": ready(),
+            "queue": {"size": queue.size, "pending": queue.pending},
+            "config": {"sampling": "fake", "max_video_seconds": 15, "max_file_mb": 300},
+            "version": {"pipeline": VERSION, "detector": "fake", "classifier": "fake"},
+        }
         return JSONResponse(body, status_code=200 if ready() else 503)
 
     @app.get("/api/v1/catalog")
@@ -153,8 +173,12 @@ def create_app(settings: Optional[FakeSettings] = None) -> FastAPI:
         return ok(request, json.loads(CATALOG_FILE.read_text(encoding="utf-8")), message="Catálogo")
 
     @app.post("/api/v1/detect")
-    async def detect(request: Request, file: UploadFile = File(...), file_name: str = Form(...),
-                     client_mtime: Optional[str] = Form(None)):
+    async def detect(
+        request: Request,
+        file: UploadFile = File(...),
+        file_name: str = Form(...),
+        client_mtime: Optional[str] = Form(None),
+    ):
         if not authorized(request):
             _log("fake.detect.rejected", request, code="IA_UNAUTHORIZED")
             return fail(request, "IA_UNAUTHORIZED", "API key ausente o incorrecta.")
@@ -188,8 +212,11 @@ def create_app(settings: Optional[FakeSettings] = None) -> FastAPI:
         data["media"]["sha256"] = hashlib.sha256(content).hexdigest()
         data["media"]["size_bytes"] = len(content)
         captured = parse_datetime_from_filename(file_name)
-        data["capture"] = ({"captured_at": captured.isoformat(), "source": "filename"} if captured
-                           else {"captured_at": None, "source": "none"})
+        data["capture"] = (
+            {"captured_at": captured.isoformat(), "source": "filename"}
+            if captured
+            else {"captured_at": None, "source": "none"}
+        )
         data["analysis"]["processing_ms"] = elapsed_ms
         data["model"] = {**data["model"], "pipeline_version": VERSION}
         if sc.bad_contract:

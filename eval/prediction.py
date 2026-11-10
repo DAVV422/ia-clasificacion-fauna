@@ -7,11 +7,11 @@ from typing import List, Optional
 @dataclass
 class Prediction:
     file_name: str
-    category: str                       # animal | person | vehicle | blank | error
+    category: str  # animal | person | vehicle | blank | error
     confidence: float
-    raw_label: Optional[str] = None     # etiqueta tal como la dio la estrategia
+    raw_label: Optional[str] = None  # etiqueta tal como la dio la estrategia
     scientific_name: Optional[str] = None
-    rank: Optional[str] = None          # species | genus | family | order | class
+    rank: Optional[str] = None  # species | genus | family | order | class
     genus: Optional[str] = None
     family: Optional[str] = None
     frames_analyzed: int = 0

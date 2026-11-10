@@ -27,10 +27,22 @@ from wwm_pipeline.catalog_schema import parse_label
 from wwm_pipeline.package import JSONL_NAME, MANIFEST_NAME, Manifest, PackageLine, count_lines
 
 OUT = Path(__file__).resolve().parent.parent / "tests/fixtures/package"
-MODEL = {"detector": "MDv5a", "classifier": "speciesnet-4.0.2a", "sampling": "15fps@0-2s+6fps", "pipeline_version": "1.0.0"}
-CAMERA = {"code": "CAM01", "name": "Quebrada norte", "latitude": -17.78345, "longitude": -63.18211,
-          "deployed_at": "2026-03-01T08:30:00", "retrieved_at": "2026-03-19T17:00:00", "still_installed": False,
-          "observations": "Sobre sendero de tapires"}
+MODEL = {
+    "detector": "MDv5a",
+    "classifier": "speciesnet-4.0.2a",
+    "sampling": "15fps@0-2s+6fps",
+    "pipeline_version": "1.0.0",
+}
+CAMERA = {
+    "code": "CAM01",
+    "name": "Quebrada norte",
+    "latitude": -17.78345,
+    "longitude": -63.18211,
+    "deployed_at": "2026-03-01T08:30:00",
+    "retrieved_at": "2026-03-19T17:00:00",
+    "still_installed": False,
+    "observations": "Sobre sendero de tapires",
+}
 
 
 def _tax(label: str) -> dict:
@@ -47,15 +59,28 @@ def _folder(label: str) -> str:
     return f"{t.genus}_sp"  # type: ignore[union-attr]
 
 
-def _line(name: str, category: Optional[str], label: Optional[str] = None, conf: float = 0.9,
-          frame: Optional[str] = None, ts: float = 3.5, media: str = "video", error: Optional[str] = None,
-          action: str = "copy") -> dict:
+def _line(
+    name: str,
+    category: Optional[str],
+    label: Optional[str] = None,
+    conf: float = 0.9,
+    frame: Optional[str] = None,
+    ts: float = 3.5,
+    media: str = "video",
+    error: Optional[str] = None,
+    action: str = "copy",
+) -> dict:
     sha = fake_sha(name)
     line = {
-        "file_name": name, "file_sha256": sha, "file_size_bytes": 15_000_000 if media == "video" else 2_400_000,
-        "media_type": media, "duration_seconds": 14.0 if media == "video" else None,
-        "captured_at": f"2026-03-{(sum(map(ord, name)) % 18) + 1:02d}T04:22:10", "captured_at_source": "filename",
-        "status": "error" if error else "done", "error_code": error,
+        "file_name": name,
+        "file_sha256": sha,
+        "file_size_bytes": 15_000_000 if media == "video" else 2_400_000,
+        "media_type": media,
+        "duration_seconds": 14.0 if media == "video" else None,
+        "captured_at": f"2026-03-{(sum(map(ord, name)) % 18) + 1:02d}T04:22:10",
+        "captured_at_source": "filename",
+        "status": "error" if error else "done",
+        "error_code": error,
         "category": None if error else category,
         "taxonomy": _tax(label) if label and not error else None,
         "confidence": None if error else conf,
@@ -65,9 +90,14 @@ def _line(name: str, category: Optional[str], label: Optional[str] = None, conf:
         "desktop_action": {"type": "left_in_place", "destination_folder": None},
     }
     if frame and not error:
-        line["evidence"] = {"file": f"evidence/{sha}.jpg", "frame_index": int(ts * 30) if media == "video" else 0,
-                            "timestamp_seconds": ts if media == "video" else 0.0,
-                            "bbox": [0.3, 0.2, 0.7, 0.8], "width": 960, "height": 540}
+        line["evidence"] = {
+            "file": f"evidence/{sha}.jpg",
+            "frame_index": int(ts * 30) if media == "video" else 0,
+            "timestamp_seconds": ts if media == "video" else 0.0,
+            "bbox": [0.3, 0.2, 0.7, 0.8],
+            "width": 960,
+            "height": 540,
+        }
     if category == "animal" and not error:
         line["desktop_action"] = {"type": action, "destination_folder": _folder(label)}  # type: ignore[arg-type]
     line["_frame"] = frame
@@ -91,9 +121,15 @@ def base_lines() -> List[dict]:
     ]
 
 
-def build_zip(lines: List[dict], camera: Optional[dict] = CAMERA, version: str = "1.0",
-              tamper_checksum: bool = False, extra: Optional[Dict[str, bytes]] = None,
-              corrupt_frame_of: Optional[int] = None, include_manifest: bool = True) -> bytes:
+def build_zip(
+    lines: List[dict],
+    camera: Optional[dict] = CAMERA,
+    version: str = "1.0",
+    tamper_checksum: bool = False,
+    extra: Optional[Dict[str, bytes]] = None,
+    corrupt_frame_of: Optional[int] = None,
+    include_manifest: bool = True,
+) -> bytes:
     clean = [{k: v for k, v in line.items() if k != "_frame"} for line in lines]
     for line in clean:
         PackageLine.model_validate(line)  # las líneas base siempre son válidas
@@ -103,12 +139,23 @@ def build_zip(lines: List[dict], camera: Optional[dict] = CAMERA, version: str =
         checksum = "sha256:" + "0" * 64
     counts = count_lines([PackageLine.model_validate(line) for line in clean]).model_dump()
     manifest = {
-        "format": "wwm-desktop-export", "format_version": version, "app_version": "1.0.0",
-        "created_at": "2026-03-20T15:04:05Z", "device_id": "3f9a1c0e", "camera_code": "CAM01",
-        "camera": camera, "source_folder_name": "SD_CAM01_marzo",
-        "run": {"job_id": "j-20260320-145000", "started_at": "2026-03-20T14:50:00Z",
-                "finished_at": "2026-03-20T15:03:40Z", "action": "copy"},
-        "model": MODEL, "counts": counts, "checksums": {JSONL_NAME: checksum},
+        "format": "wwm-desktop-export",
+        "format_version": version,
+        "app_version": "1.0.0",
+        "created_at": "2026-03-20T15:04:05Z",
+        "device_id": "3f9a1c0e",
+        "camera_code": "CAM01",
+        "camera": camera,
+        "source_folder_name": "SD_CAM01_marzo",
+        "run": {
+            "job_id": "j-20260320-145000",
+            "started_at": "2026-03-20T14:50:00Z",
+            "finished_at": "2026-03-20T15:03:40Z",
+            "action": "copy",
+        },
+        "model": MODEL,
+        "counts": counts,
+        "checksums": {JSONL_NAME: checksum},
     }
     if version.startswith("1.") and not tamper_checksum:
         Manifest.model_validate(manifest)
@@ -116,7 +163,9 @@ def build_zip(lines: List[dict], camera: Optional[dict] = CAMERA, version: str =
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
         if include_manifest:
-            zf.writestr(MANIFEST_NAME, json.dumps(manifest, indent=2, ensure_ascii=False), compress_type=zipfile.ZIP_DEFLATED)
+            zf.writestr(
+                MANIFEST_NAME, json.dumps(manifest, indent=2, ensure_ascii=False), compress_type=zipfile.ZIP_DEFLATED
+            )
         zf.writestr(JSONL_NAME, jsonl, compress_type=zipfile.ZIP_DEFLATED)
         for i, (line, original) in enumerate(zip(clean, lines)):
             if line.get("evidence"):

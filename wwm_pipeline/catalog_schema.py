@@ -68,14 +68,16 @@ def parse_label(label_raw: str) -> Optional[CatalogTaxon]:
     if present != list(range(depth + 1)):
         raise LabelParseError(f"La etiqueta tiene niveles salteados: {label_raw!r}")
     rank = RANK_ORDER[depth]
-    return CatalogTaxon(
-        label_id=label_id.strip(),
-        rank=rank,
-        class_=levels[0],
-        order=levels[1],
-        family=levels[2],
-        genus=levels[3],
-        species=levels[4],
-        scientific_name=scientific_name_for(levels, rank),
-        common_name=common.strip() or None,
+    return CatalogTaxon.model_validate(
+        {
+            "label_id": label_id.strip(),
+            "rank": rank,
+            "class": levels[0],
+            "order": levels[1],
+            "family": levels[2],
+            "genus": levels[3],
+            "species": levels[4],
+            "scientific_name": scientific_name_for(levels, rank),
+            "common_name": common.strip() or None,
+        }
     )

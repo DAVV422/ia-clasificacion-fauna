@@ -19,8 +19,27 @@ from pathlib import Path
 from eval.labels import LABELS_CSV, Label, file_sha256, load_labels, split_for, write_labels
 from eval.taxonomy_index import TaxonomyIndex
 
-EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp", ".heic", ".heif",
-              ".mp4", ".m4v", ".mov", ".avi", ".mkv", ".wmv", ".3gp", ".mts", ".m2ts", ".webm"}
+EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".tif",
+    ".tiff",
+    ".bmp",
+    ".webp",
+    ".heic",
+    ".heif",
+    ".mp4",
+    ".m4v",
+    ".mov",
+    ".avi",
+    ".mkv",
+    ".wmv",
+    ".3gp",
+    ".mts",
+    ".m2ts",
+    ".webm",
+}
 VIDEO = {".mp4", ".m4v", ".mov", ".avi", ".mkv", ".wmv", ".3gp", ".mts", ".m2ts", ".webm"}
 SHORTCUTS = {"b": "blank", "p": "person", "v": "vehicle"}
 
@@ -57,9 +76,13 @@ def main() -> int:
             else:
                 taxon = index.lookup_name(answer)
                 if taxon is None:
-                    print("  No está en las etiquetas de SpeciesNet; usa el nombre científico (p. ej. 'Panthera onca').")
+                    print(
+                        "  No está en las etiquetas de SpeciesNet; usa el nombre científico (p. ej. 'Panthera onca')."
+                    )
                     continue
-                lab = Label(path.name, sha, media, "animal", taxon.scientific_name, taxon.rank.value, split_for(sha), notes)
+                lab = Label(
+                    path.name, sha, media, "animal", taxon.scientific_name, taxon.rank.value, split_for(sha), notes
+                )
             labels.append(lab)
             known.add(sha)
             write_labels(labels)  # se guarda después de cada archivo

@@ -2,7 +2,6 @@
 
 import asyncio
 import hashlib
-import json
 import logging
 import time
 
@@ -17,16 +16,27 @@ HEADERS = {"X-API-Key": KEY}
 
 
 def make_client(**overrides) -> httpx.AsyncClient:
-    settings = FakeSettings(api_key=KEY, delay_seconds=0, slow_seconds=0.3, timeout_seconds=0.3,
-                            concurrency=1, queue_size=2, not_ready_seconds=0)
+    settings = FakeSettings(
+        api_key=KEY,
+        delay_seconds=0,
+        slow_seconds=0.3,
+        timeout_seconds=0.3,
+        concurrency=1,
+        queue_size=2,
+        not_ready_seconds=0,
+    )
     for k, v in overrides.items():
         setattr(settings, k, v)
     return httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(settings)), base_url="http://ia")
 
 
 async def detect(client, name: str, content: bytes = b"contenido de prueba", headers=HEADERS):
-    return await client.post("/api/v1/detect", headers=headers,
-                             files={"file": (name, content, "application/octet-stream")}, data={"file_name": name})
+    return await client.post(
+        "/api/v1/detect",
+        headers=headers,
+        files={"file": (name, content, "application/octet-stream")},
+        data={"file_name": name},
+    )
 
 
 @pytest.mark.anyio
@@ -189,8 +199,12 @@ async def test_request_id_echo_and_logged(caplog):
     logger.addHandler(handler)
     try:
         async with make_client() as client:
-            r = await client.post("/api/v1/detect", headers={**HEADERS, "X-Request-ID": "abc", "X-Flow": "FL-08"},
-                                  files={"file": ("a.mp4", b"x")}, data={"file_name": "a.mp4"})
+            r = await client.post(
+                "/api/v1/detect",
+                headers={**HEADERS, "X-Request-ID": "abc", "X-Flow": "FL-08"},
+                files={"file": ("a.mp4", b"x")},
+                data={"file_name": "a.mp4"},
+            )
     finally:
         logger.removeHandler(handler)
     assert r.headers["X-Request-ID"] == "abc"

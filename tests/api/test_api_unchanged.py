@@ -15,9 +15,13 @@ ROOT = Path(__file__).resolve().parents[2]
 BEFORE = ROOT / "eval/legacy/api_before.json"
 SAMPLES = Path(os.getenv("LEGACY_SAMPLES_DIR", str(Path(os.getenv("EVAL_DATA_DIR", "")) / "legacy_samples")))
 
-pytestmark = [pytest.mark.integration,
-              pytest.mark.skipif(not (BEFORE.exists() and SAMPLES.is_dir() and (ROOT / "models/md_v5a.0.0.pt").exists()),
-                                 reason="requiere api_before.json, las muestras y los modelos")]
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not (BEFORE.exists() and SAMPLES.is_dir() and (ROOT / "models/md_v5a.0.0.pt").exists()),
+        reason="requiere api_before.json, las muestras y los modelos",
+    ),
+]
 
 
 def normalize(body) -> dict:

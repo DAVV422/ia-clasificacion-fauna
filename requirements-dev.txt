@@ -1,0 +1,11 @@
+# Herramientas de desarrollo y build (no van al ejecutable)
+-r requirements-desktop.txt
+pytest==9.0.2
+httpx==0.28.1
+fastapi==0.115.14
+uvicorn==0.32.1
+python-multipart==0.0.20
+ruff==0.14.10
+mypy==1.19.1
+pyinstaller==6.16.0
+pip-tools==7.5.2

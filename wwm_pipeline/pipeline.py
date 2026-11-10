@@ -34,7 +34,7 @@ class FrameResult:
 @dataclass
 class FileResult:
     file_name: str
-    media_type: str                   # image | video
+    media_type: str  # image | video
     decision: Decision
     frames: List[FrameResult] = field(default_factory=list)
     fps: Optional[float] = None
@@ -60,12 +60,20 @@ def analyze_frame(frame_bgr, models: Models, config: PipelineConfig, run_name: s
         crop_name = new_crop_name()
         crop_path = crop_url = None
         if config.save_crops and config.crops_dir is not None:
-            crop_path, crop_url = save_crop(crop, config.crops_dir, run_name, box.category, crop_name,
-                                            config.crops_url_prefix)
+            crop_path, crop_url = save_crop(
+                crop, config.crops_dir, run_name, box.category, crop_name, config.crops_url_prefix
+            )
         species = classify_crop(crop, models, crop_name) if box.category == "animal" else []
-        detections.append({"box": list(box.box_norm), "class_name": box.category,
-                           "confidence": round(box.confidence, 4), "species": species,
-                           "crop_path": crop_path, "crop_url": crop_url})
+        detections.append(
+            {
+                "box": list(box.box_norm),
+                "class_name": box.category,
+                "confidence": round(box.confidence, 4),
+                "species": species,
+                "crop_path": crop_path,
+                "crop_url": crop_url,
+            }
+        )
     return detections
 
 
@@ -75,13 +83,20 @@ def media_type_of(file_name: str) -> str:
         return "image"
     if ext in VIDEO_EXTENSIONS:
         return "video"
-    raise PipelineError("IA_INVALID_FORMAT", f"Extensión no soportada: {ext}",
-                        accepted=sorted(IMAGE_EXTENSIONS | VIDEO_EXTENSIONS))
+    raise PipelineError(
+        "IA_INVALID_FORMAT", f"Extensión no soportada: {ext}", accepted=sorted(IMAGE_EXTENSIONS | VIDEO_EXTENSIONS)
+    )
 
 
-def classify_file(path, file_name: Optional[str], config: PipelineConfig, models: Models,
-                  on_progress: Optional[ProgressFn] = None, should_stop: Optional[StopFn] = None,
-                  run_name: Optional[str] = None) -> FileResult:
+def classify_file(
+    path,
+    file_name: Optional[str],
+    config: PipelineConfig,
+    models: Models,
+    on_progress: Optional[ProgressFn] = None,
+    should_stop: Optional[StopFn] = None,
+    run_name: Optional[str] = None,
+) -> FileResult:
     """Clasifica un archivo (imagen o video) y devuelve una decisión por archivo.
 
     ``file_name``: el nombre original (para la extensión y, en la fase 1, la fecha); por defecto, el de ``path``.
@@ -106,8 +121,7 @@ def classify_file(path, file_name: Optional[str], config: PipelineConfig, models
         if on_progress:
             on_progress("detection", 1, 1)
         detections = analyze_frame(frame, models, config, run_name)
-        frames = [FrameResult(0, 0.0, detections)]
-        result = FileResult(file_name, "image", legacy_best(detections), frames)
+        result = FileResult(file_name, "image", legacy_best(detections), [FrameResult(0, 0.0, detections)])
     else:
         cap = cv2.VideoCapture(str(path))
         if not cap.isOpened():
@@ -134,7 +148,14 @@ def classify_file(path, file_name: Optional[str], config: PipelineConfig, models
         finally:
             cap.release()
         all_dets = [d for f in frames for d in f.detections]
-        result = FileResult(file_name, "video", legacy_best(all_dets), frames, fps=fps, frame_count=frame_count,
-                            duration_seconds=round(frame_count / fps, 2))
+        result = FileResult(
+            file_name,
+            "video",
+            legacy_best(all_dets),
+            frames,
+            fps=fps,
+            frame_count=frame_count,
+            duration_seconds=round(frame_count / fps, 2),
+        )
     result.processing_ms = int((time.perf_counter() - t0) * 1000)
     return result

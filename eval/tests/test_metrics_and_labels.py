@@ -23,8 +23,17 @@ def lab(name, category, sci="", rank="", media="video") -> Label:
 
 
 def pred(name, category, sci=None, rank=None, genus=None, family=None, ms=1000, frames=3) -> Prediction:
-    return Prediction(file_name=name, category=category, confidence=0.9, scientific_name=sci, rank=rank,
-                      genus=genus, family=family, processing_ms=ms, frames_analyzed=frames)
+    return Prediction(
+        file_name=name,
+        category=category,
+        confidence=0.9,
+        scientific_name=sci,
+        rank=rank,
+        genus=genus,
+        family=family,
+        processing_ms=ms,
+        frames_analyzed=frames,
+    )
 
 
 JAGUAR = TruthTaxon("Panthera onca", "species", "panthera", "felidae")
@@ -33,8 +42,11 @@ JAGUAR = TruthTaxon("Panthera onca", "species", "panthera", "felidae")
 def test_genus_prediction_counts_as_not_reached_not_error():
     """CA-6: etiqueta Panthera onca, predicción Panthera (género)."""
     labels = [lab("a.mp4", "animal", "Panthera onca", "species")]
-    m = compute(labels, {labels[0].sha256: pred("a.mp4", "animal", "Panthera", "genus", "panthera", "felidae")},
-                {labels[0].sha256: JAGUAR})
+    m = compute(
+        labels,
+        {labels[0].sha256: pred("a.mp4", "animal", "Panthera", "genus", "panthera", "felidae")},
+        {labels[0].sha256: JAGUAR},
+    )
     assert (m.species.correct, m.species.wrong, m.species.not_reached) == (0, 0, 1)
     assert m.genus.correct == 1 and m.family.correct == 1
 
@@ -42,15 +54,20 @@ def test_genus_prediction_counts_as_not_reached_not_error():
 def test_wrong_species_same_family():
     """CA-6: etiqueta Panthera onca, predicción Puma concolor."""
     labels = [lab("a.mp4", "animal", "Panthera onca", "species")]
-    m = compute(labels, {labels[0].sha256: pred("a.mp4", "animal", "Puma concolor", "species", "puma", "felidae")},
-                {labels[0].sha256: JAGUAR})
+    m = compute(
+        labels,
+        {labels[0].sha256: pred("a.mp4", "animal", "Puma concolor", "species", "puma", "felidae")},
+        {labels[0].sha256: JAGUAR},
+    )
     assert m.species.wrong == 1 and m.genus.wrong == 1 and m.family.correct == 1
 
 
 def test_false_negative_and_positive():
     labels = [lab("animal.mp4", "animal", "Panthera onca", "species"), lab("vacio.mp4", "blank")]
-    preds = {labels[0].sha256: pred("animal.mp4", "blank"),
-             labels[1].sha256: pred("vacio.mp4", "animal", "Puma concolor", "species", "puma", "felidae")}
+    preds = {
+        labels[0].sha256: pred("animal.mp4", "blank"),
+        labels[1].sha256: pred("vacio.mp4", "animal", "Puma concolor", "species", "puma", "felidae"),
+    }
     m = compute(labels, preds, {labels[0].sha256: JAGUAR})
     assert m.false_negatives == [("animal.mp4", "blank")]
     assert m.false_positives == [("vacio.mp4", "Puma concolor")]
@@ -60,23 +77,34 @@ def test_false_negative_and_positive():
 def test_genus_label_not_scored_for_species():
     labels = [lab("agouti.mp4", "animal", "Dasyprocta", "genus")]
     truth = {labels[0].sha256: TruthTaxon("Dasyprocta", "genus", "dasyprocta", "dasyproctidae")}
-    m = compute(labels, {labels[0].sha256: pred("agouti.mp4", "animal", "Dasyprocta leporina", "species",
-                                                "dasyprocta", "dasyproctidae")}, truth)
+    m = compute(
+        labels,
+        {
+            labels[0].sha256: pred(
+                "agouti.mp4", "animal", "Dasyprocta leporina", "species", "dasyprocta", "dasyproctidae"
+            )
+        },
+        truth,
+    )
     assert m.species.evaluated == 0 and m.genus.correct == 1 and m.family.correct == 1
 
 
 def test_errors_excluded_from_accuracy_and_times():
     labels = [lab("a.mp4", "animal", "Panthera onca", "species"), lab("b.mp4", "blank")]
-    preds = {labels[0].sha256: Prediction("a.mp4", "error", 0.0, error="decode"),
-             labels[1].sha256: pred("b.mp4", "blank", ms=500, frames=1)}
+    preds = {
+        labels[0].sha256: Prediction("a.mp4", "error", 0.0, error="decode"),
+        labels[1].sha256: pred("b.mp4", "blank", ms=500, frames=1),
+    }
     m = compute(labels, preds, {})
     assert m.errors == [("a.mp4", "decode")] and m.category_accuracy == 1.0 and m.mean_ms == 500
 
 
 def test_timing_and_confusion():
     labels = [lab(f"{i}.mp4", "animal", "Panthera onca", "species") for i in range(10)]
-    preds = {l.sha256: pred(l.file_name, "animal", "Panthera onca", "species", "panthera", "felidae", ms=(i + 1) * 100)
-             for i, l in enumerate(labels)}
+    preds = {
+        l.sha256: pred(l.file_name, "animal", "Panthera onca", "species", "panthera", "felidae", ms=(i + 1) * 100)
+        for i, l in enumerate(labels)
+    }
     preds[labels[0].sha256] = pred("0.mp4", "animal", "Puma concolor", "species", "puma", "felidae", ms=100)
     m = compute(labels, preds, {l.sha256: JAGUAR for l in labels})
     assert m.species.correct == 9 and m.species.accuracy == 0.9
@@ -99,8 +127,13 @@ def test_split_is_stable_and_about_30_percent():
 def test_label_row_validation():
     good = lab("a.mp4", "animal", "Panthera onca", "species").__dict__
     validate_row({k: str(v) for k, v in good.items()}, 2)
-    for bad in ({"label_category": "gato"}, {"label_rank": "subespecie"}, {"split": "test" if good["split"] == "calib" else "calib"},
-                {"label_category": "blank"}, {"sha256": "abc"}):
+    for bad in (
+        {"label_category": "gato"},
+        {"label_rank": "subespecie"},
+        {"split": "test" if good["split"] == "calib" else "calib"},
+        {"label_category": "blank"},
+        {"sha256": "abc"},
+    ):
         with pytest.raises(LabelError):
             validate_row({**{k: str(v) for k, v in good.items()}, **bad}, 2)
 
@@ -124,8 +157,10 @@ def test_versioned_labels_csv_is_consistent():
 def test_report_files(tmp_path):
     """CA-7: el reporte se escribe en .md y .json con las mismas cifras."""
     labels = [lab("a.mp4", "animal", "Panthera onca", "species"), lab("b.mp4", "blank")]
-    preds = {labels[0].sha256: pred("a.mp4", "animal", "Panthera onca", "species", "panthera", "felidae"),
-             labels[1].sha256: pred("b.mp4", "blank")}
+    preds = {
+        labels[0].sha256: pred("a.mp4", "animal", "Panthera onca", "species", "panthera", "felidae"),
+        labels[1].sha256: pred("b.mp4", "blank"),
+    }
     m = compute(labels, preds, {labels[0].sha256: JAGUAR})
     md = write_report("baseline", "test", labels, m, {"detector": "MDv5a"}, out_dir=tmp_path, day="2026-11-10")
     data = json.loads((tmp_path / "2026-11-10_baseline.json").read_text(encoding="utf-8"))

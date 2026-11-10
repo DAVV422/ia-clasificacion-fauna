@@ -21,12 +21,12 @@ VIDEO_EXTENSIONS = frozenset({".mp4", ".avi", ".mov", ".mkv", ".wmv", ".flv", ".
 @dataclass(frozen=True)
 class PipelineConfig:
     name: str
-    sampling: str = "legacy3"          # "legacy3" (fase 0) | "dense" (fase 1, IA-11)
-    legacy_mode: str = "desktop"       # cómo calcula el prototipo los 3 frames: "desktop" | "api"
-    early_exit: bool = True            # detenerse en el primer frame con animal (solo legacy)
-    md_threshold: float = 0.30         # umbral de MegaDetector
-    correct_class_map: bool = False    # False = tabla del prototipo (persona→animal, vehículo→persona); True en la fase 1
-    save_crops: bool = False           # F0-D3: solo la API los guarda, hasta IA-05
+    sampling: str = "legacy3"  # "legacy3" (fase 0) | "dense" (fase 1, IA-11)
+    legacy_mode: str = "desktop"  # cómo calcula el prototipo los 3 frames: "desktop" | "api"
+    early_exit: bool = True  # detenerse en el primer frame con animal (solo legacy)
+    md_threshold: float = 0.30  # umbral de MegaDetector
+    correct_class_map: bool = False  # False = tabla del prototipo (persona→animal, vehículo→persona); True en la fase 1
+    save_crops: bool = False  # F0-D3: solo la API los guarda, hasta IA-05
     crops_dir: Optional[Path] = None
     crops_url_prefix: str = "/detections"
     # --- fase 1 (valores neutros hasta IA-11/IA-13) ---

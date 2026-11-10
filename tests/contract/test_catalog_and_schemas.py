@@ -15,8 +15,11 @@ from wwm_pipeline.enums import Rank
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG_FILE = ROOT / "tests/fixtures/catalog/speciesnet_catalog.sample.json"
-LABELS_FILE = (Path.home() / ".cache/kagglehub/models/google/speciesnet/pyTorch/v4.0.2a/1"
-               / "always_crop_99710272_22x8_v12_epoch_00148.labels.20251208.txt")
+LABELS_FILE = (
+    Path.home()
+    / ".cache/kagglehub/models/google/speciesnet/pyTorch/v4.0.2a/1"
+    / "always_crop_99710272_22x8_v12_epoch_00148.labels.20251208.txt"
+)
 
 
 def test_sample_catalog_validates_and_is_big_enough():
@@ -31,11 +34,22 @@ def test_sample_catalog_contains_fixture_taxa():
         assert label.split(";")[0] in ids
 
 
-@pytest.mark.parametrize("label,rank,name", [
-    ("9b7fea59-cfa3-499c-a420-bcf36277dcd8;mammalia;carnivora;felidae;panthera;onca;jaguar", Rank.SPECIES, "Panthera onca"),
-    ("4e6eb99a-baf0-4235-a7bc-1dd7b741b7c3;mammalia;rodentia;dasyproctidae;dasyprocta;;dasyprocta species", Rank.GENUS, "Dasyprocta"),
-    ("837e12c2-f30c-4875-afeb-32d51938f139;aves;galliformes;;;;galliformes order", Rank.ORDER, "Galliformes"),
-])
+@pytest.mark.parametrize(
+    "label,rank,name",
+    [
+        (
+            "9b7fea59-cfa3-499c-a420-bcf36277dcd8;mammalia;carnivora;felidae;panthera;onca;jaguar",
+            Rank.SPECIES,
+            "Panthera onca",
+        ),
+        (
+            "4e6eb99a-baf0-4235-a7bc-1dd7b741b7c3;mammalia;rodentia;dasyproctidae;dasyprocta;;dasyprocta species",
+            Rank.GENUS,
+            "Dasyprocta",
+        ),
+        ("837e12c2-f30c-4875-afeb-32d51938f139;aves;galliformes;;;;galliformes order", Rank.ORDER, "Galliformes"),
+    ],
+)
 def test_parse_label(label, rank, name):
     taxon = parse_label(label)
     assert taxon.rank is rank and taxon.scientific_name == name
@@ -67,9 +81,11 @@ def test_exported_schemas_in_sync():
 
 def test_contract_imports_without_torch_or_cv2():
     """CA-8: el back puede usar el contrato sin instalar torch ni OpenCV."""
-    code = ("import sys\n"
-            "for m in ('torch', 'cv2', 'numpy'): sys.modules[m] = None\n"
-            "import wwm_pipeline.contract, wwm_pipeline.package, wwm_pipeline.catalog_schema, wwm_pipeline.package_validator\n"
-            "print('ok')")
+    code = (
+        "import sys\n"
+        "for m in ('torch', 'cv2', 'numpy'): sys.modules[m] = None\n"
+        "import wwm_pipeline.contract, wwm_pipeline.package, wwm_pipeline.catalog_schema, wwm_pipeline.package_validator\n"
+        "print('ok')"
+    )
     result = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr

@@ -13,7 +13,7 @@ _REPO = Path(__file__).resolve().parents[2]
 # faltan o están desactualizados. Para medir, eso se desactiva: no cambia la clasificación, solo evita
 # que se modifique el entorno. (Hallazgo de la fase 0; se resuelve de fondo en HU-DS-11.)
 os.environ.setdefault("YOLOv5_AUTOINSTALL", "false")  # código de YOLOv5 (torch.hub)
-os.environ.setdefault("YOLO_AUTOINSTALL", "false")    # paquete ultralytics
+os.environ.setdefault("YOLO_AUTOINSTALL", "false")  # paquete ultralytics
 
 MEGADETECTOR_PATH = Path(os.getenv("LEGACY_MEGADETECTOR_PATH", str(_REPO / "models" / "md_v5a.0.0.pt")))
 CONFIDENCE_THRESHOLD = 0.30

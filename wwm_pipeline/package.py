@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .contract import BBox, ModelInfo, SHA256_PATTERN, Alternative, Taxonomy, _check_bbox
+from .contract import SHA256_PATTERN, Alternative, BBox, ModelInfo, Taxonomy, _check_bbox
 from .enums import (
     CATEGORIES_WITH_EVIDENCE,
     CaptureSource,

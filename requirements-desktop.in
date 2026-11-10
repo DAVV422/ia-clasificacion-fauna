@@ -1,0 +1,14 @@
+# Dependencias de la app de escritorio y del pipeline (HU-DS-00).
+# Versiones = las del build del prototipo (verificadas en build/desktop_app), para no cambiar resultados.
+# Regenerar el lock:  pip-compile --generate-hashes --allow-unsafe -o requirements-desktop.txt requirements-desktop.in
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.8.0+cpu
+torchvision==0.23.0+cpu
+speciesnet==5.0.4
+ultralytics==8.4.58
+numpy==1.26.4
+opencv-python-headless==4.11.0.86
+pillow==10.4.0
+pydantic>=2.6,<3
+requests>=2.31
+setuptools<82

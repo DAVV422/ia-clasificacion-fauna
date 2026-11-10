@@ -58,13 +58,25 @@ class Metrics:
 
     def to_dict(self) -> dict:
         def level(s: LevelScore) -> dict:
-            return {"evaluated": s.evaluated, "correct": s.correct, "wrong": s.wrong,
-                    "not_reached": s.not_reached, "accuracy": s.accuracy}
+            return {
+                "evaluated": s.evaluated,
+                "correct": s.correct,
+                "wrong": s.wrong,
+                "not_reached": s.not_reached,
+                "accuracy": s.accuracy,
+            }
+
         return {
-            "files": self.files, "category_accuracy": self.category_accuracy,
-            "species": level(self.species), "genus": level(self.genus), "family": level(self.family),
-            "false_negatives": len(self.false_negatives), "false_positives": len(self.false_positives),
-            "errors": len(self.errors), "mean_ms": self.mean_ms, "p90_ms": self.p90_ms,
+            "files": self.files,
+            "category_accuracy": self.category_accuracy,
+            "species": level(self.species),
+            "genus": level(self.genus),
+            "family": level(self.family),
+            "false_negatives": len(self.false_negatives),
+            "false_positives": len(self.false_positives),
+            "errors": len(self.errors),
+            "mean_ms": self.mean_ms,
+            "p90_ms": self.p90_ms,
             "mean_frames": self.mean_frames,
         }
 
@@ -83,8 +95,12 @@ def _score_level(score: LevelScore, truth_value: Optional[str], pred_value: Opti
         score.wrong += 1
 
 
-def compute(labels: List[Label], predictions: Dict[str, Prediction], truth_taxa: Dict[str, TruthTaxon],
-            top_n_confusion: int = 10) -> Metrics:
+def compute(
+    labels: List[Label],
+    predictions: Dict[str, Prediction],
+    truth_taxa: Dict[str, TruthTaxon],
+    top_n_confusion: int = 10,
+) -> Metrics:
     """``truth_taxa``: por sha256, la taxonomía completa de la etiqueta (género y familia)."""
     m = Metrics()
     cat_ok = 0

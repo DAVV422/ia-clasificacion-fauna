@@ -35,13 +35,22 @@ def truth_taxa_for(labels, index: TaxonomyIndex) -> Dict[str, TruthTaxon]:
         if lab.label_category != "animal" or not lab.label_scientific_name:
             continue
         taxon = index.lookup_name(lab.label_scientific_name)
-        out[lab.sha256] = TruthTaxon(lab.label_scientific_name, lab.label_rank,
-                                     taxon.genus if taxon else None, taxon.family if taxon else None)
+        out[lab.sha256] = TruthTaxon(
+            lab.label_scientific_name, lab.label_rank, taxon.genus if taxon else None, taxon.family if taxon else None
+        )
     return out
 
 
-def run(config: str, split: str, data_dir: Path, resume: bool, labels_path: Path = DEFAULT_LABELS,
-        run_file: Path = None, labels_csv: Path = None, reports_dir: Path = None) -> Path:
+def run(
+    config: str,
+    split: str,
+    data_dir: Path,
+    resume: bool,
+    labels_path: Path = DEFAULT_LABELS,
+    run_file: Path = None,
+    labels_csv: Path = None,
+    reports_dir: Path = None,
+) -> Path:
     labels = by_split(load_labels(labels_csv) if labels_csv else load_labels(), split)
     index = TaxonomyIndex(labels_path)
     strategy = STRATEGIES[config](index)
@@ -66,7 +75,9 @@ def run(config: str, split: str, data_dir: Path, resume: bool, labels_path: Path
             done[lab.sha256] = pred
             out.write(json.dumps({"sha256": lab.sha256, "prediction": pred.to_dict()}, ensure_ascii=False) + "\n")
             out.flush()
-            print(f"[{i}/{len(labels)}] {lab.file_name}: {pred.category} {pred.scientific_name or ''} ({pred.processing_ms} ms)")
+            print(
+                f"[{i}/{len(labels)}] {lab.file_name}: {pred.category} {pred.scientific_name or ''} ({pred.processing_ms} ms)"
+            )
 
     metrics = compute(labels, done, truth_taxa_for(labels, index))
     kwargs = {"out_dir": reports_dir} if reports_dir else {}
