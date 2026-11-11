@@ -7,7 +7,8 @@ Lo usan la API (``app/main.py``) y la app de escritorio. No conoce FastAPI ni Tk
 - Presets ``web()``/``desktop()`` (``sampling="dense"``, HU-IA-11): muestreo por tiempo real en dos
   pasadas secuenciales; MegaDetector en todos los frames conservados y SpeciesNet sobre el mejor
   recuadro de animal de una selección de ``max_classified_frames`` frames (presupuesto, F1-D2).
-  La decisión todavía usa la regla del prototipo (``legacy_best``) hasta HU-IA-13.
+  La decisión sale de la votación ponderada entre frames (``aggregation.vote``, HU-IA-13). Las
+  imágenes con esos presets usan la misma votación, con un solo voto.
 """
 
 import time
@@ -15,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from .aggregation import Decision, legacy_best
+from .aggregation import Decision, FrameVote, VoteResult, legacy_best, vote
 from .classification import classify_crop, classify_crop_raw, to_species_list
 from .config import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, PipelineConfig
 from .detection import detect
@@ -50,8 +51,17 @@ class FileResult:
     frames_discarded: Dict[str, int] = field(default_factory=dict)
     frames_classified: int = 0
     truncated_at_seconds: Optional[float] = None
-    # --- taxonomía completa (HU-IA-14); solo en los presets densos ---
-    taxonomy: Optional[Any] = None  # contract.Taxonomy del resultado, o None si no es fauna
+    # --- votación (HU-IA-13) y taxonomía completa (HU-IA-14); solo en los presets densos ---
+    vote: Optional[VoteResult] = None
+
+    @property
+    def taxonomy(self):
+        """``contract.Taxonomy`` del resultado, o ``None`` si no es fauna (o con los presets legacy)."""
+        return self.vote.taxonomy if self.vote is not None else None
+
+    @property
+    def low_evidence(self) -> bool:
+        return bool(self.vote and self.vote.low_evidence)
 
     @property
     def frames_sampled(self) -> int:
@@ -139,8 +149,11 @@ def classify_file(
             raise PipelineError("IA_DECODE_FAILED", "No se pudo leer la imagen (formato no válido o archivo corrupto).")
         if on_progress:
             on_progress("detection", 1, 1)
-        detections = analyze_frame(frame, models, config, run_name)
-        result = FileResult(file_name, "image", legacy_best(detections), [FrameResult(0, 0.0, detections)])
+        if config.sampling == "dense":
+            result = _classify_image_dense(frame, file_name, config, models)
+        else:
+            detections = analyze_frame(frame, models, config, run_name)
+            result = FileResult(file_name, "image", legacy_best(detections), [FrameResult(0, 0.0, detections)])
     elif config.sampling == "dense":
         result = _classify_video_dense(path, file_name, config, models, on_progress, should_stop)
     else:
@@ -240,46 +253,21 @@ def _classify_video_dense(
             raise PipelineCancelled(file_name)
         if on_progress:
             on_progress("detection", i, total)
-        detections: List[Dict[str, Any]] = []
-        best: Optional[Dict[str, Any]] = None
-        best_crop = None
-        for box in detect(image, models, config.md_threshold, config.correct_class_map):
-            det = {
-                "box": list(box.box_norm),
-                "class_name": box.category,
-                "confidence": round(box.confidence, 4),
-                "species": [],
-                "crop_path": None,
-                "crop_url": None,
-            }
-            detections.append(det)
-            if box.category == "animal" and (best is None or det["confidence"] > best["confidence"]):
-                x1, y1, x2, y2 = box.pixels
-                best, best_crop = det, image[y1:y2, x1:x2]
-        if best is not None:
-            candidates.append(
-                _AnimalCandidate(len(frames), planned, best, _shrink(best_crop, config.classify_crop_max_px))
-            )
+        detections, cand = _detect_dense(image, planned, len(frames), models, config)
+        if cand is not None:
+            candidates.append(cand)
         frames.append(FrameResult(planned.index, round(planned.t, 2), detections))
 
     chosen = choose_for_classification(candidates, config.max_classified_frames)
-    for i, cand in enumerate(chosen, start=1):
-        if should_stop is not None and should_stop():
-            raise PipelineCancelled(file_name)
-        if on_progress:
-            on_progress("classification", i, len(chosen))
-        labels = classify_crop_raw(cand.crop, models, f"{file_name}#{cand.frame.index}")
-        cand.detection["species"] = to_species_list(labels)
-        cand.detection["labels_raw"] = labels
+    votes = _classify_candidates(chosen, file_name, models, on_progress, should_stop)
     candidates.clear()  # libera los recortes
 
-    all_dets = [d for f in frames for d in f.detections]
-    decision = legacy_best(all_dets)
+    result_vote = _vote_file(frames, votes, models, config)
     fps = sampled.fps
     return FileResult(
         file_name,
         "video",
-        decision,
+        result_vote.to_decision(),
         frames,
         fps=fps,
         frame_count=sampled.frame_count,
@@ -288,7 +276,97 @@ def _classify_video_dense(
         frames_discarded=dict(sampled.discarded),
         frames_classified=len(chosen),
         truncated_at_seconds=sampled.truncated_at_seconds,
-        taxonomy=_taxonomy_of_decision(all_dets, decision, models, config.common_name_lang),
+        vote=result_vote,
+    )
+
+
+def _detect_dense(image, planned: PlannedFrame, position: int, models: Models, config: PipelineConfig):
+    """MegaDetector sobre un frame → (detecciones, candidato con el recuadro de animal más confiable)."""
+    detections: List[Dict[str, Any]] = []
+    best: Optional[Dict[str, Any]] = None
+    best_crop = None
+    for box in detect(image, models, config.md_threshold, config.correct_class_map):
+        det = {
+            "box": list(box.box_norm),
+            "class_name": box.category,
+            "confidence": round(box.confidence, 4),
+            "species": [],
+            "crop_path": None,
+            "crop_url": None,
+        }
+        detections.append(det)
+        if box.category == "animal" and (best is None or det["confidence"] > best["confidence"]):
+            x1, y1, x2, y2 = box.pixels
+            best, best_crop = det, image[y1:y2, x1:x2]
+    if best is None:
+        return detections, None
+    return detections, _AnimalCandidate(position, planned, best, _shrink(best_crop, config.classify_crop_max_px))
+
+
+def _classify_candidates(
+    chosen: List[_AnimalCandidate],
+    file_name: str,
+    models: Models,
+    on_progress: Optional[ProgressFn],
+    should_stop: Optional[StopFn],
+) -> List[FrameVote]:
+    """SpeciesNet sobre cada candidato elegido; cada uno vota con su etiqueta top-1."""
+    votes: List[FrameVote] = []
+    for i, cand in enumerate(chosen, start=1):
+        if should_stop is not None and should_stop():
+            raise PipelineCancelled(file_name)
+        if on_progress:
+            on_progress("classification", i, len(chosen))
+        labels = classify_crop_raw(cand.crop, models, f"{file_name}#{cand.frame.index}")
+        cand.detection["species"] = to_species_list(labels)
+        cand.detection["labels_raw"] = labels
+        if labels:
+            raw, score = labels[0]
+            votes.append(
+                FrameVote(
+                    cand.frame.index,
+                    round(cand.frame.t, 2),
+                    raw,
+                    cand.detection["confidence"],
+                    score,
+                    tuple(cand.detection["box"]),
+                )
+            )
+    return votes
+
+
+def _vote_file(frames: List[FrameResult], votes: List[FrameVote], models: Models, config: PipelineConfig):
+    md_confidence: Dict[str, float] = {}
+    for d in (d for f in frames for d in f.detections):
+        if d["class_name"] in ("person", "vehicle"):
+            md_confidence[d["class_name"]] = max(md_confidence.get(d["class_name"], 0.0), d["confidence"])
+    return vote(
+        votes,
+        taxonomy_index_of(models),
+        species_threshold=config.species_threshold,
+        genus_threshold=config.genus_threshold,
+        min_single_vote=config.min_single_vote,
+        md_confidence=md_confidence,
+        frames_without_detections=sum(1 for f in frames if not f.detections),
+        frames_total=len(frames),
+        lang=config.common_name_lang,
+    )
+
+
+def _classify_image_dense(image, file_name: str, config: PipelineConfig, models: Models) -> FileResult:
+    planned = PlannedFrame(0, 0.0, 0.0, None)
+    detections, cand = _detect_dense(image, planned, 0, models, config)
+    votes = _classify_candidates([cand] if cand is not None else [], file_name, models, None, None)
+    frames = [FrameResult(0, 0.0, detections)]
+    result_vote = _vote_file(frames, votes, models, config)
+    return FileResult(
+        file_name,
+        "image",
+        result_vote.to_decision(),
+        frames,
+        sampling=config.sampling_label,
+        frames_classified=len(votes),
+        vote=result_vote,
     )
 
 
@@ -298,14 +376,3 @@ def taxonomy_index_of(models: Models):
 
     index = getattr(models, "taxonomy", None)
     return index if index is not None else TaxonomyIndex([], common_names_es=None)
-
-
-def _taxonomy_of_decision(detections, decision: Decision, models: Models, lang: str):
-    """La taxonomía completa de la etiqueta ganadora (la misma que eligió ``legacy_best``)."""
-    if decision.category != "animal" or not decision.label:
-        return None
-    for det in detections:
-        labels = det.get("labels_raw") or []
-        if labels and det["species"][0]["species"] == decision.label and labels[0][1] == decision.confidence:
-            return taxonomy_index_of(models).to_taxonomy(labels[0][0], lang)
-    return None

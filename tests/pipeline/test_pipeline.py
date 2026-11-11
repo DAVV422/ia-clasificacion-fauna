@@ -154,3 +154,42 @@ def test_import_has_no_side_effects(tmp_path):
     result = subprocess.run([sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True, env=env)
     assert result.returncode == 0, result.stderr
     assert list(tmp_path.iterdir()) == []
+
+
+def _scene_video(path: Path, frames: int, fps: int, animal_from: int) -> Path:
+    """Escena con cuadrícula y un bloque que se mueve (no se descarta como duplicado); clara desde ``animal_from``."""
+    vw = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (320, 180))
+    for i in range(frames):
+        base = 170 if i >= animal_from else 40
+        img = np.full((180, 320, 3), base, np.uint8)
+        img[::16, :] = 255 - base
+        img[:, ::16] = 255 - base
+        x = (i * 9) % 260
+        img[50:130, x : x + 60] = 20 if base > 100 else 90
+        vw.write(img)
+    vw.release()
+    return path
+
+
+def test_no_early_exit_in_new_presets(tmp_path):
+    """HU-IA-13 CA-7: el animal aparece en el frame 2 y se clasifican todos los frames con animal."""
+    from dataclasses import replace
+
+    video = _scene_video(tmp_path / "v.mp4", 12 * 10, 10, animal_from=2)
+    models = FakeModels(bright_threshold=100)
+    config = replace(PipelineConfig.desktop(), max_classified_frames=10_000)
+    result = classify_file(video, None, config, models)
+    assert result.frames_sampled >= 60
+    assert models.classifier_calls == result.frames_with_animal == result.frames_classified
+    assert result.vote is not None and result.vote.votes[0].frames == result.frames_with_animal
+    assert result.decision.category == "animal" and result.decision.label == "Panthera onca"
+    assert result.taxonomy.scientific_name == "Panthera onca"
+
+
+def test_dense_image_uses_vote(tmp_path):
+    image = write_image(tmp_path / "a.jpg", 200)
+    result = classify_file(image, None, PipelineConfig.web(), FakeModels())
+    assert result.vote is not None and result.taxonomy.scientific_name == "Panthera onca"
+    assert result.frames_classified == 1
+    dark = classify_file(write_image(tmp_path / "b.jpg", 10), None, PipelineConfig.web(), FakeModels())
+    assert dark.decision.category == "blank" and dark.vote.confidence == 1.0

@@ -65,6 +65,11 @@
           "title": "Frames With Animal",
           "type": "integer"
         },
+        "low_evidence": {
+          "default": false,
+          "title": "Low Evidence",
+          "type": "boolean"
+        },
         "processing_ms": {
           "minimum": 0,
           "title": "Processing Ms",

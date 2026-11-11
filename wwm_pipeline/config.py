@@ -4,9 +4,9 @@
   quedan como referencia de la línea base. **No se modifican.**
     - ``legacy_api``: 3 frames (25/50/75 %), **sin** salida temprana (lo que hacía ``app/main.py``).
     - ``legacy_desktop``: 3 frames con salida temprana al primer animal (lo que hacía ``desktop_app.py``).
-- ``web()`` / ``desktop()`` (fase 1): muestreo denso por tiempo (HU-IA-11), sin salida temprana y
-  con el mapa de clases de MegaDetector corregido. La votación por archivo llega con HU-IA-13; hasta
-  entonces la decisión usa la regla del prototipo sobre todos los frames analizados.
+- ``web()`` / ``desktop()`` (fase 1): muestreo denso por tiempo (HU-IA-11), sin salida temprana,
+  con el mapa de clases de MegaDetector corregido y la decisión por votación entre frames con
+  subida a género o familia (HU-IA-13).
 
 Los umbrales son valores iniciales conservadores: no se midieron (F1-D11) y se ajustan con el
 *feedback* de las pruebas en campo (F1-D12).
@@ -45,6 +45,10 @@ class PipelineConfig:
     # F1-D9: "en" (por defecto, los nombres de SpeciesNet) | "es" (tabla de ~135 especies de Bolivia; las
     # demás siguen en inglés aunque se elija español).
     common_name_lang: str = "en"
+    # --- votación (HU-IA-13); valores iniciales sin medir (F1-D11), se ajustan con el feedback de campo ---
+    species_threshold: float = 0.60  # proporción mínima de los votos de fauna para quedarse en especie
+    genus_threshold: float = 0.60  # ídem para género; si no, se informa la familia
+    min_single_vote: float = 0.25  # un único voto por debajo de esto → analysis.low_evidence
 
     def with_crops(self, crops_dir: Path, url_prefix: str = "/detections") -> "PipelineConfig":
         return replace(self, save_crops=True, crops_dir=Path(crops_dir), crops_url_prefix=url_prefix)
