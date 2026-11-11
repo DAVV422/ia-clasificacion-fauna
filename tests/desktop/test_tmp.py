@@ -4,7 +4,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -42,20 +41,34 @@ def test_clear_tmp_removes_leftovers(data_dir):
 
 
 def test_process_file_leaves_tmp_empty(data_dir, tmp_path):
+    """El análisis de la app (FolderJob, HU-DS-01) deja tmp vacío, también cuando un archivo falla."""
+    import queue
+    import threading
+
     cv2 = pytest.importorskip("cv2")
-    from desktop.ui import legacy_window
+    from desktop.job.events import FileDone
+    from desktop.job.folder_job import FolderJob
 
-    image = tmp_path / "jaguar.jpg"
-    cv2.imwrite(str(image), np.full((64, 64, 3), 200, dtype=np.uint8))
-    broken = tmp_path / "roto.mp4"
-    broken.write_bytes(b"no es un video")
+    src = tmp_path / "entrada"
+    src.mkdir()
+    cv2.imwrite(str(src / "jaguar.jpg"), np.full((64, 64, 3), 200, dtype=np.uint8))
+    (src / "roto.mp4").write_bytes(b"no es un video")
+    seen = []
 
-    window = SimpleNamespace(detector=SimpleNamespace(models=FakeModels()))
-    detections = legacy_window.WildlifeDesktopApp._process_file(window, image)
-    assert detections and list(paths.tmp_dir().iterdir()) == []
+    class Spy(FakeModels):
+        def run_detector(self, frame_rgb):
+            seen.append([p.name for p in paths.tmp_dir().iterdir()])  # durante el archivo: su carpeta job_*
+            return super().run_detector(frame_rgb)
 
-    with pytest.raises(ValueError):
-        legacy_window.WildlifeDesktopApp._process_file(window, broken)
+    events: queue.Queue = queue.Queue()
+    FolderJob(src, Spy(), events, threading.Event()).run()
+    done = []
+    while not events.empty():
+        e = events.get_nowait()
+        if isinstance(e, FileDone):
+            done.append(e)
+    assert [d.status for d in done] == ["done", "error"]
+    assert seen and all(len(names) == 1 and names[0].startswith("job_") for names in seen)
     assert list(paths.tmp_dir().iterdir()) == []
 
 

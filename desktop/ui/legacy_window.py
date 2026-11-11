@@ -1,17 +1,18 @@
-"""Ventana actual de la app de escritorio (prototipo v1), movida tal cual desde desktop_app.py.
+"""Ventana actual de la app de escritorio (prototipo v1), movida desde desktop_app.py.
 
 HU-DS-00: el arranque vive en desktop/main.py. El rediseño de la ventana es HU-DS-22.
+HU-DS-01: el análisis lo hace ``desktop.job.FolderJob`` (modo precisión) en un hilo; la ventana solo
+lee sus eventos y nunca llama al pipeline.
 """
 
 
 import os
 import sys
-import shutil
 import threading
 import queue
 import logging
+import time
 from pathlib import Path
-from typing import List, Tuple
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext, messagebox
 
@@ -47,22 +48,15 @@ logging.getLogger("uvicorn.error").propagate = True
 
 from app.config import MEGADETECTOR_URL
 from app.detector import WildlifeDetector
-from wwm_pipeline.aggregation import legacy_best
-from wwm_pipeline.config import PipelineConfig
-from wwm_pipeline.errors import PipelineError
-from wwm_pipeline.pipeline import classify_file
+from desktop.job.actions import make_species_action
+from desktop.job.events import FileDone, JobDone, JobError, JobStarted, Progress
+from desktop.job.folder_job import FolderJob, configure_threads
 
-
-def species_folder_name(label) -> str:
-    """Nombre de carpeta del prototipo: "género;especie;común" → "genero_especie_comun" (HU-DS-03 lo revisa)."""
-    if not label:
-        return "animal_desconocido"
-    folder = label.replace(";", "_").replace(" ", "_")
-    folder = "".join(c for c in folder if c.isalnum() or c in "_-")
-    return folder or "animal_desconocido"
-
-import cv2
 import requests
+
+# Peso de cada etapa del pipeline dentro del avance de un archivo (para la barra de progreso).
+STAGE_SPAN = {"sampling": (0.0, 0.15), "detection": (0.15, 0.85), "classification": (0.85, 1.0)}
+STAGE_LABEL = {"sampling": "lectura", "detection": "detección", "classification": "clasificación"}
 
 
 # ---------------------------------------------------------------------------
@@ -138,12 +132,6 @@ def _download_weights(url: str, dest_path: Path, log_fn=None):
                 time.sleep(3)
 
 # ---------------------------------------------------------------------------
-# Extensiones soportadas
-# ---------------------------------------------------------------------------
-IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tiff'}
-VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm'}
-
-# ---------------------------------------------------------------------------
 # Colores de la UI (Tema Blanco y Negro)
 # ---------------------------------------------------------------------------
 BG_DARK     = "#181818"      # Fondo oscuro principal
@@ -182,6 +170,8 @@ class WildlifeDesktopApp(tk.Tk):
 
         self.detector = WildlifeDetector(paths.megadetector_path())  # HU-DS-04: pesos en AppData
         self.log_queue: queue.Queue = queue.Queue()
+        self.job_events: queue.Queue = queue.Queue()  # eventos de FolderJob (HU-DS-01)
+        self.stop_event = threading.Event()
         self.is_running = False
 
         self._build_ui()
@@ -483,7 +473,9 @@ class WildlifeDesktopApp(tk.Tk):
         logging.getLogger("desktop.ui").log(level, message.strip())
 
     def _poll_log_queue(self):
-        """Consume mensajes pendientes del log cada 100 ms."""
+        """Consume mensajes pendientes del log y los eventos del análisis cada 100 ms."""
+        while not self.job_events.empty():
+            self._on_job_event(self.job_events.get_nowait())
         while not self.log_queue.empty():
             msg, tag = self.log_queue.get_nowait()
             self.log_text.config(state="normal")
@@ -509,6 +501,7 @@ class WildlifeDesktopApp(tk.Tk):
                 if paths.migrate_legacy_model():
                     self._log("📦  Modelo copiado desde la instalación anterior", "ok")
                 _download_weights(MEGADETECTOR_URL, paths.megadetector_path(), log_fn=self._log)
+                configure_threads()  # deja un núcleo libre para la interfaz
                 self.detector.load_model()
                 self._log("✅  Modelos listos. ¡Puedes iniciar el análisis!", "ok")
                 self.after(0, lambda: self.status_dot.config(
@@ -545,164 +538,136 @@ class WildlifeDesktopApp(tk.Tk):
             return
 
         self.is_running = True
-        self._stop_requested = False
+        self.stop_event = threading.Event()
         self.start_btn.config(state="disabled", text="⏳  Procesando…")
         self.stop_btn.config(state="normal")
         self.progress_var.set(0)
 
-        threading.Thread(
-            target=self._analysis_worker,
-            args=(input_dir, output_dir, action),
-            daemon=True,
-        ).start()
-
-    def _on_stop(self):
-        if self.is_running:
-            self._stop_requested = True
-            self._log("⏹  Deteniendo… (terminará el archivo actual)", "warn")
-
-    # -----------------------------------------------------------------------
-    # Worker principal de análisis (hilo secundario)
-    # -----------------------------------------------------------------------
-    def _analysis_worker(self, input_dir: str, output_dir: str, action: str):
-        input_path  = Path(input_dir)
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
-
-        # Recopilar todos los archivos soportados (case-insensitive)
-        all_files = []
-        for path in input_path.iterdir():
-            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS | VIDEO_EXTENSIONS:
-                all_files.append(path)
-        all_files.sort()
-
-        if not all_files:
-            self._log("⚠️  No se encontraron archivos de imagen o video en la carpeta.", "warn")
-            self.after(0, self._reset_ui)
-            return
-
-        action_label = "Copiando" if action == "copy" else "Moviendo"
-        self._log(f"\n{'─'*54}", "head")
-        self._log(f"  📁 Entrada : {input_dir}", "head")
-        self._log(f"  📂 Salida  : {output_dir}", "head")
-        self._log(f"  ⚙️  Acción  : {action_label}", "head")
-        self._log(f"  📊 Archivos: {len(all_files)}", "head")
-        self._log(f"{'─'*54}\n", "head")
-
-        stats = {"total": len(all_files), "with_animals": 0, "skipped": 0, "errors": 0}
-
-        for idx, file_path in enumerate(all_files, start=1):
-            if getattr(self, "_stop_requested", False):
-                self._log("⏹  Análisis detenido por el usuario.", "warn")
-                break
-
-            pct = (idx / stats["total"]) * 100
-            self.after(0, lambda p=pct: self.progress_var.set(p))
-            self.after(0, lambda f=file_path, i=idx, t=stats["total"]:
-                       self.prog_label.config(
-                           text=f"[{i}/{t}]  {f.name}"))
-
-            self._log(f"🔍 [{idx}/{stats['total']}]  {file_path.name}", "dim")
-
-            try:
-                detections = self._process_file(file_path)
-
-                # Filtrar sólo animales
-                animal_dets = [d for d in detections if d.get("class_name") == "animal"]
-
-                if animal_dets:
-                    stats["with_animals"] += 1
-                    species_folder, top_conf = self._resolve_species(animal_dets)
-
-                    dest_dir = output_path / species_folder
-                    dest_dir.mkdir(parents=True, exist_ok=True)
-                    dest = dest_dir / file_path.name
-
-                    # Evitar colisiones de nombre
-                    dest = self._unique_dest(dest)
-
-                    if action == "copy":
-                        shutil.copy2(str(file_path), str(dest))
-                        verb = "COPIADO"
-                    else:
-                        shutil.move(str(file_path), str(dest))
-                        verb = "MOVIDO"
-
-                    self._log(
-                        f"   🐾  {species_folder}  ({top_conf:.0%} conf.)  →  ✅ {verb}",
-                        "ok",
-                    )
-                else:
-                    stats["skipped"] += 1
-                    self._log(f"   ⬜  Sin animales detectados", "dim")
-
-            except Exception as exc:
-                stats["errors"] += 1
-                self._log(f"   ❌  Error: {exc}", "error")
-
-        # Resumen final
-        self._log(f"\n{'─'*54}", "head")
-        self._log("  ✅  ANÁLISIS COMPLETADO", "head")
-        self._log(f"  Total analizados : {stats['total']}", "head")
-        self._log(f"  Con animales      : {stats['with_animals']}  🐾", "ok")
-        self._log(f"  Sin animales      : {stats['skipped']}", "dim")
-        self._log(f"  Errores           : {stats['errors']}", "error" if stats["errors"] else "dim")
-        self._log(f"{'─'*54}\n", "head")
-
-        self.after(0, lambda: self.prog_label.config(
-            text=(f"✅  Listo — {stats['with_animals']} archivos con animales "
-                  f"de {stats['total']} analizados")))
-        self.after(0, self._reset_ui)
-
-        messagebox.showinfo(
-            "Análisis completado",
-            f"Proceso terminado.\n\n"
-            f"  Archivos con animales : {stats['with_animals']}\n"
-            f"  Sin animales          : {stats['skipped']}\n"
-            f"  Errores               : {stats['errors']}\n\n"
-            f"Resultados guardados en:\n{output_dir}",
+        self._job_info = {"input": input_dir, "output": output_dir, "action": action, "total": 0, "t0": time.monotonic(), "done_ms": []}
+        job = FolderJob(
+            input_dir,
+            self.detector.models,
+            self.job_events,
+            self.stop_event,
+            apply_action=make_species_action(output_path, action),
         )
+        threading.Thread(target=job.run, daemon=True).start()
+
+    def _on_stop(self):
+        if self.is_running and not self.stop_event.is_set():
+            self.stop_event.set()
+            self._log("⏹  Deteniendo… (se corta el archivo actual)", "warn")
 
     # -----------------------------------------------------------------------
-    # Procesar un archivo (imagen o video)
+    # Eventos del análisis (HU-DS-01): llegan por la cola, se procesan en el hilo de la UI
     # -----------------------------------------------------------------------
-    def _process_file(self, file_path: Path):
-        """Clasifica un archivo con wwm_pipeline (HU-IA-40, preset legacy_desktop).
+    def _on_job_event(self, event):
+        info = getattr(self, "_job_info", None) or {}
+        if isinstance(event, JobStarted):
+            info["total"] = event.total
+            if not event.total:
+                self._log("⚠️  No se encontraron archivos de imagen o video en la carpeta.", "warn")
+                return
+            action_label = "Copiando" if info.get("action") == "copy" else "Moviendo"
+            self._log(f"\n{'─'*54}", "head")
+            self._log(f"  📁 Entrada : {info.get('input')}", "head")
+            self._log(f"  📂 Salida  : {info.get('output')}", "head")
+            self._log(f"  ⚙️  Acción  : {action_label}", "head")
+            self._log(f"  📊 Archivos: {event.total}", "head")
+            self._log(f"  🔬 Modo    : precisión (video completo + votación)", "head")
+            self._log(f"{'─'*54}\n", "head")
+        elif isinstance(event, Progress):
+            self._show_progress(event, info)
+        elif isinstance(event, FileDone):
+            info.setdefault("done_ms", []).append(event.elapsed_ms)
+            self._log_file_done(event, info.get("total", 0))
+            total = info.get("total") or 1
+            self.progress_var.set(event.file_index / total * 100)
+        elif isinstance(event, JobError):
+            self._log(f"❌  {event.message or event.code}", "error")
+        elif isinstance(event, JobDone):
+            self._finish(event, info)
 
-        Mismo comportamiento que el prototipo: hasta 3 frames con salida temprana al primer
-        animal. Ya no se guardan recortes en disco (F0-D3). Devuelve las detecciones de todos
-        los frames analizados, en el mismo formato que antes.
-        """
-        try:
-            with paths.file_tmp():  # HU-DS-04: cualquier temporal del archivo se borra al terminar
-                result = classify_file(file_path, None, PipelineConfig.legacy_desktop(), self.detector.models)
-        except PipelineError as err:
-            raise ValueError(err.message) from err
-        return result.all_detections
+    def _show_progress(self, event: Progress, info: dict):
+        total = info.get("total") or 1
+        lo, hi = STAGE_SPAN.get(event.stage, (0.0, 1.0))
+        within = lo + (hi - lo) * (event.done / event.total if event.total else 0)
+        self.progress_var.set(((event.file_index - 1) + within) / total * 100)
+        stage = STAGE_LABEL.get(event.stage, event.stage)
+        text = f"[{event.file_index}/{total}]  {event.file_name}  ·  {stage} {event.done}/{event.total}"
+        eta = self._eta_text(info, event.file_index)
+        self.prog_label.config(text=f"{text}{eta}")
 
-    # -----------------------------------------------------------------------
-    # Helpers
-    # -----------------------------------------------------------------------
     @staticmethod
-    def _resolve_species(animal_detections: list) -> Tuple[str, float]:
-        """Devuelve (nombre_carpeta_especie, confianza) del mejor resultado."""
-        decision = legacy_best(animal_detections)
-        return species_folder_name(decision.label), decision.confidence
+    def _eta_text(info: dict, file_index: int) -> str:
+        done = info.get("done_ms") or []
+        elapsed = time.monotonic() - info.get("t0", time.monotonic())
+        text = f"  ·  {_fmt_duration(elapsed)} transcurrido"
+        if done:
+            remaining = (sum(done) / len(done)) / 1000 * (info.get("total", 0) - file_index + 1)
+            text += f", faltan ~{_fmt_duration(remaining)}"
+        return text
 
-    @staticmethod
-    def _unique_dest(dest: Path) -> Path:
-        """Si el destino ya existe, añade un sufijo numérico."""
-        if not dest.exists():
-            return dest
-        stem, suffix = dest.stem, dest.suffix
-        counter = 1
-        while True:
-            new_dest = dest.parent / f"{stem}_{counter}{suffix}"
-            if not new_dest.exists():
-                return new_dest
-            counter += 1
+    def _log_file_done(self, event: FileDone, total: int):
+        self._log(f"🔍 [{event.file_index}/{total}]  {event.file_name}  ({event.elapsed_ms / 1000:.0f} s)", "dim")
+        if event.status == "error":
+            self._log(f"   ❌  Error ({event.error_code}): {event.error_message}", "error")
+            return
+        if event.status == "cancelled":
+            self._log("   ⏹  Detenido a mitad del archivo (no se copió ni movió)", "warn")
+            return
+        result = event.result
+        category = result.decision.category
+        if category == "animal":
+            tax = result.taxonomy
+            name = f"{tax.scientific_name} ({tax.common_name})" if tax and tax.common_name else (tax.scientific_name if tax else "?")
+            rank = "" if not tax or tax.rank.value == "species" else f" [{tax.rank.value}]"
+            review = "  ⚠️ revisar" if result.low_evidence else ""
+            self._log(f"   🐾  {name}{rank}  ({result.decision.confidence:.0%})  →  ✅ {event.action or ''}{review}", "ok")
+        elif category == "person":
+            self._log("   🧍  Persona (no se copia)", "dim")
+        elif category == "vehicle":
+            self._log("   🚙  Vehículo (no se copia)", "dim")
+        else:
+            self._log("   ⬜  Sin animales detectados", "dim")
+
+    def _finish(self, event: JobDone, info: dict):
+        summary = event.summary
+        title = "⏹  ANÁLISIS DETENIDO" if summary.stopped else "✅  ANÁLISIS COMPLETADO"
+        self._log(f"\n{'─'*54}", "head")
+        self._log(f"  {title}", "head")
+        self._log(f"  Total en la carpeta : {summary.total}", "head")
+        self._log(f"  Analizados          : {summary.processed}", "head")
+        self._log(f"  Con animales        : {summary.with_animals}  🐾", "ok")
+        self._log(f"  Sin animales        : {summary.without_animals}", "dim")
+        self._log(f"  Errores             : {summary.errors}", "error" if summary.errors else "dim")
+        self._log(f"  Tiempo              : {_fmt_duration(summary.elapsed_ms / 1000)}", "dim")
+        self._log(f"{'─'*54}\n", "head")
+        self.prog_label.config(
+            text=f"{'⏹  Detenido' if summary.stopped else '✅  Listo'} — {summary.with_animals} archivos con animales "
+            f"de {summary.processed} analizados"
+        )
+        self._reset_ui()
+        if summary.total:
+            messagebox.showinfo(
+                "Análisis detenido" if summary.stopped else "Análisis completado",
+                f"Proceso {'detenido' if summary.stopped else 'terminado'}.\n\n"
+                f"  Archivos con animales : {summary.with_animals}\n"
+                f"  Sin animales          : {summary.without_animals}\n"
+                f"  Errores               : {summary.errors}\n\n"
+                f"Resultados guardados en:\n{info.get('output')}",
+            )
 
     def _reset_ui(self):
         self.is_running = False
         self.start_btn.config(state="normal", text="▶   Iniciar Análisis")
         self.stop_btn.config(state="disabled")
+
+
+def _fmt_duration(seconds: float) -> str:
+    seconds = int(max(0, seconds))
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    return f"{hours} h {minutes:02d} min" if hours else f"{minutes} min {secs:02d} s"

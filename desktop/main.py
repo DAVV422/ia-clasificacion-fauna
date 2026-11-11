@@ -68,6 +68,7 @@ def selftest() -> int:
         "numpy",
         "speciesnet.classifier",
         "wwm_pipeline.pipeline",
+        "desktop.job.folder_job",
         "tkinter",
     ):
         try:

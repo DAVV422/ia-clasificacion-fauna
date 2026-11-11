@@ -1,7 +1,8 @@
 """HU-DS-04 · CA-2 y CA-4 — clasificar desde una carpeta de solo lectura (simula "Archivos de programa").
 
 Se ejecuta en un subproceso cuyo cwd es una carpeta con escritura denegada (ACL de Windows con
-``icacls``), con el mismo arranque que ``desktop.main.run`` y la lógica real de la ventana. Se comprueba:
+``icacls``), con el mismo arranque que ``desktop.main.run`` y el análisis real de la app (``FolderJob`` con
+el preset de escritorio, HU-DS-01). Se comprueba:
 - que el análisis termina sin errores de permisos;
 - que el árbol de la carpeta de solo lectura no cambia (hash antes/después);
 - que no aparece ninguna carpeta ``detections`` (ni en data_dir, ni en el cwd, ni nueva en el repo).
@@ -30,25 +31,26 @@ pytestmark = [
 ]
 
 SCRIPT = r"""
-import json, os, shutil, sys
+import json, os, queue, sys, threading
 from pathlib import Path
-from types import SimpleNamespace
 root, samples, out = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
 sys.path.insert(0, str(root))
 from desktop import paths
 paths.ensure_dirs(); paths.configure_env(); os.chdir(paths.data_dir())   # mismo arranque que desktop.main.run
 paths.migrate_legacy_model([root / "models" / "md_v5a.0.0.pt"])
 from app.detector import WildlifeDetector
-from desktop.ui.legacy_window import WildlifeDesktopApp
-window = SimpleNamespace(detector=WildlifeDetector(paths.megadetector_path()))
+from desktop.job.actions import make_species_action
+from desktop.job.events import FileDone
+from desktop.job.folder_job import FolderJob
+detector = WildlifeDetector(paths.megadetector_path())
+detector.load_model()
+events = queue.Queue()
+FolderJob(samples, detector.models, events, threading.Event(), apply_action=make_species_action(out, "copy")).run()
 folders = {}
-for f in sorted(samples.iterdir()):
-    dets = WildlifeDesktopApp._process_file(window, f)
-    animals = [d for d in dets if d.get("class_name") == "animal"]
-    folder, _ = WildlifeDesktopApp._resolve_species(animals) if animals else ("sin_animales", 0)
-    (out / folder).mkdir(parents=True, exist_ok=True)
-    shutil.copy2(f, out / folder / f.name)
-    folders[f.name] = folder
+while not events.empty():
+    e = events.get_nowait()
+    if isinstance(e, FileDone):
+        folders[e.file_name] = e.error_code or e.action or e.result.decision.category
 print(json.dumps({"folders": folders, "tmp": [p.name for p in paths.tmp_dir().iterdir()]}))
 """
 
@@ -112,6 +114,7 @@ def test_run_from_readonly_dir(readonly_dir, tmp_path):
     result = json.loads(r.stdout.strip().splitlines()[-1])
 
     assert len(result["folders"]) == len(list(SAMPLES.iterdir()))
+    assert not [v for v in result["folders"].values() if v.startswith(("IA_", "DESKTOP_"))], result["folders"]
     assert result["tmp"] == []  # CA-5 en el flujo real
     assert tree_hash(readonly_dir) == before  # CA-2
     assert (data / "models" / "md_v5a.0.0.pt").exists()  # los pesos quedaron en AppData
