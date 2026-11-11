@@ -8,7 +8,9 @@ Lo usan la API (``app/main.py``) y la app de escritorio. No conoce FastAPI ni Tk
   pasadas secuenciales; MegaDetector en todos los frames conservados y SpeciesNet sobre el mejor
   recuadro de animal de una selección de ``max_classified_frames`` frames (presupuesto, F1-D2).
   La decisión sale de la votación ponderada entre frames (``aggregation.vote``, HU-IA-13). Las
-  imágenes con esos presets usan la misma votación, con un solo voto.
+  imágenes con esos presets usan la misma votación, con un solo voto. Esos presets también llenan
+  los metadatos del archivo (``sha256``, dimensiones, duración del contenedor y fecha de captura,
+  HU-IA-20).
 """
 
 import time
@@ -20,8 +22,10 @@ from .aggregation import Decision, FrameVote, VoteResult, legacy_best, vote
 from .classification import classify_crop, classify_crop_raw, to_species_list
 from .config import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, PipelineConfig
 from .detection import detect
+from .enums import MediaType
 from .errors import PipelineCancelled, PipelineError
 from .evidence import new_crop_name, save_crop
+from .metadata import capture, file_sha256, probe
 from .models import Models
 from .sampling import PlannedFrame, iter_selected, legacy_frames, sample_video
 
@@ -53,6 +57,12 @@ class FileResult:
     truncated_at_seconds: Optional[float] = None
     # --- votación (HU-IA-13) y taxonomía completa (HU-IA-14); solo en los presets densos ---
     vote: Optional[VoteResult] = None
+    # --- metadatos del archivo (HU-IA-20); solo en los presets densos ---
+    sha256: Optional[str] = None
+    size_bytes: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    capture: Optional[Any] = None  # contract.Capture
 
     @property
     def taxonomy(self):
@@ -191,6 +201,8 @@ def classify_file(
             frame_count=frame_count,
             duration_seconds=round(frame_count / fps, 2),
         )
+    if config.sampling == "dense":
+        _fill_metadata(result, path, file_name)
     result.processing_ms = int((time.perf_counter() - t0) * 1000)
     return result
 
@@ -278,6 +290,18 @@ def _classify_video_dense(
         truncated_at_seconds=sampled.truncated_at_seconds,
         vote=result_vote,
     )
+
+
+def _fill_metadata(result: FileResult, path: Path, file_name: str) -> None:
+    """Huella, dimensiones, duración del contenedor y fecha de captura (HU-IA-20)."""
+    media = MediaType(result.media_type)
+    result.sha256, result.size_bytes = file_sha256(path)
+    info = probe(path, media)
+    result.width, result.height = info.width, info.height
+    if media is MediaType.VIDEO:
+        result.duration_seconds = info.duration_seconds  # la del contenedor (FPS variable)
+        result.fps = info.fps or result.fps
+    result.capture = capture(path, media, file_name)
 
 
 def _detect_dense(image, planned: PlannedFrame, position: int, models: Models, config: PipelineConfig):
