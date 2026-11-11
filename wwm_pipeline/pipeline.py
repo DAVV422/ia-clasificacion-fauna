@@ -10,7 +10,7 @@ Lo usan la API (``app/main.py``) y la app de escritorio. No conoce FastAPI ni Tk
   La decisión sale de la votación ponderada entre frames (``aggregation.vote``, HU-IA-13). Las
   imágenes con esos presets usan la misma votación, con un solo voto. Esos presets también llenan
   los metadatos del archivo (``sha256``, dimensiones, duración del contenedor y fecha de captura,
-  HU-IA-20).
+  HU-IA-20) y el fotograma de evidencia con el recuadro del resultado ganador (HU-IA-15).
 """
 
 import time
@@ -22,9 +22,9 @@ from .aggregation import Decision, FrameVote, VoteResult, legacy_best, vote
 from .classification import classify_crop, classify_crop_raw, to_species_list
 from .config import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, PipelineConfig
 from .detection import detect
-from .enums import MediaType
+from .enums import Category, MediaType
 from .errors import PipelineCancelled, PipelineError
-from .evidence import new_crop_name, save_crop
+from .evidence import EvidenceImage, label_text, new_crop_name, render_evidence, save_crop, xyxy_from_prototype
 from .metadata import capture, file_sha256, probe
 from .models import Models
 from .sampling import PlannedFrame, iter_selected, legacy_frames, sample_video
@@ -63,6 +63,8 @@ class FileResult:
     width: Optional[int] = None
     height: Optional[int] = None
     capture: Optional[Any] = None  # contract.Capture
+    # --- fotograma de evidencia (HU-IA-15); None en blank y en los presets legacy ---
+    evidence: Optional[EvidenceImage] = None
 
     @property
     def taxonomy(self):
@@ -275,6 +277,13 @@ def _classify_video_dense(
     candidates.clear()  # libera los recortes
 
     result_vote = _vote_file(frames, votes, models, config)
+    evidence = None
+    target = _evidence_target(result_vote, frames, votes, models) if config.evidence else None
+    if target is not None:
+        planned_by_index = {p.index: p for p in sampled.frames}
+        image = next((img for _, img in iter_selected(str(path), [planned_by_index[target.frame_index]])), None)
+        if image is not None:
+            evidence = _build_evidence(image, target, result_vote, config, is_video=True)
     fps = sampled.fps
     return FileResult(
         file_name,
@@ -289,6 +298,7 @@ def _classify_video_dense(
         frames_classified=len(chosen),
         truncated_at_seconds=sampled.truncated_at_seconds,
         vote=result_vote,
+        evidence=evidence,
     )
 
 
@@ -383,6 +393,7 @@ def _classify_image_dense(image, file_name: str, config: PipelineConfig, models:
     votes = _classify_candidates([cand] if cand is not None else [], file_name, models, None, None)
     frames = [FrameResult(0, 0.0, detections)]
     result_vote = _vote_file(frames, votes, models, config)
+    target = _evidence_target(result_vote, frames, votes, models) if config.evidence else None
     return FileResult(
         file_name,
         "image",
@@ -391,6 +402,83 @@ def _classify_image_dense(image, file_name: str, config: PipelineConfig, models:
         sampling=config.sampling_label,
         frames_classified=len(votes),
         vote=result_vote,
+        evidence=_build_evidence(image, target, result_vote, config, is_video=False) if target else None,
+    )
+
+
+@dataclass(frozen=True)
+class _EvidenceTarget:
+    frame_index: int
+    timestamp_seconds: float
+    box: tuple  # formato del prototipo [ymin, xmin, ymax, xmax]
+    detection_confidence: float
+
+
+def _evidence_target(result_vote: VoteResult, frames: List[FrameResult], votes: List[FrameVote], models: Models):
+    """Qué frame y qué recuadro muestra la evidencia (HU-IA-15 §3).
+
+    - ``animal``: el voto de mayor ``conf_det × conf_cls`` del grupo ganador (``support[0]``), aunque otro
+      taxón tenga un voto más alto.
+    - ``person`` / ``vehicle``: la detección de MegaDetector más confiable de esa categoría; si no la hay
+      (SpeciesNet dijo humano o vehículo sobre un recuadro de "animal"), ese voto.
+    - ``blank``: ninguno.
+    """
+    category = result_vote.category
+    if category is Category.ANIMAL:
+        top = result_vote.support[0] if result_vote.support else None
+        if top is None or top.bbox is None:
+            return None
+        return _EvidenceTarget(top.frame_index, top.timestamp_seconds, top.bbox, top.det_conf)
+    if category not in (Category.PERSON, Category.VEHICLE):
+        return None
+    best = None
+    for f in frames:
+        for d in f.detections:
+            if d["class_name"] == category.value and (best is None or d["confidence"] > best[1]["confidence"]):
+                best = (f, d)
+    if best is not None:
+        f, d = best
+        return _EvidenceTarget(f.frame_index, f.timestamp_seconds, tuple(d["box"]), d["confidence"])
+    index = taxonomy_index_of(models)
+    matches = [
+        (v, v.bbox)
+        for v in votes
+        if v.bbox is not None
+        and (
+            (category is Category.PERSON and index.is_person(v.label_raw))
+            or (category is Category.VEHICLE and index.is_non_taxon(v.label_raw) and v.label_raw.endswith("vehicle"))
+        )
+    ]
+    if not matches:
+        return None
+    v, box = max(matches, key=lambda m: (m[0].det_conf, -m[0].timestamp_seconds))
+    return _EvidenceTarget(v.frame_index, v.timestamp_seconds, box, v.det_conf)
+
+
+def _build_evidence(image, target: _EvidenceTarget, result_vote: VoteResult, config: PipelineConfig, is_video: bool):
+    bbox = xyxy_from_prototype(target.box)
+    label = None
+    if config.evidence_label:
+        tax = result_vote.taxonomy
+        label = label_text(
+            result_vote.category.value,
+            result_vote.confidence,
+            target.timestamp_seconds if is_video else None,
+            tax.scientific_name if tax else None,
+            tax.common_name if tax else None,
+            config.common_name_lang,
+        )
+    jpeg, width, height = render_evidence(
+        image, bbox, label=label, max_px=config.evidence_max_px, quality=config.jpeg_quality
+    )
+    return EvidenceImage(
+        frame_index=target.frame_index if is_video else 0,
+        timestamp_seconds=round(target.timestamp_seconds, 2) if is_video else 0.0,
+        bbox=bbox,
+        detection_confidence=round(target.detection_confidence, 4),
+        jpeg=jpeg,
+        width=width,
+        height=height,
     )
 
 

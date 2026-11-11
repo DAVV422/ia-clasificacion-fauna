@@ -49,6 +49,11 @@ class PipelineConfig:
     species_threshold: float = 0.60  # proporción mínima de los votos de fauna para quedarse en especie
     genus_threshold: float = 0.60  # ídem para género; si no, se informa la familia
     min_single_vote: float = 0.25  # un único voto por debajo de esto → analysis.low_evidence
+    # --- fotograma de evidencia (HU-IA-15); solo con sampling="dense" ---
+    evidence: bool = False
+    evidence_label: bool = False  # franja "Panthera onca (jaguar) · 94 % · 00:07" (solo escritorio)
+    evidence_max_px: int = 960
+    jpeg_quality: int = 80
 
     def with_crops(self, crops_dir: Path, url_prefix: str = "/detections") -> "PipelineConfig":
         return replace(self, save_crops=True, crops_dir=Path(crops_dir), crops_url_prefix=url_prefix)
@@ -95,6 +100,9 @@ class PipelineConfig:
             max_frames=60,
             max_classified_frames=24,
             max_video_seconds=15.0,
+            evidence=True,
+            evidence_label=False,  # el front muestra el nombre como texto, en su idioma
+            jpeg_quality=80,
         )
 
     @classmethod
@@ -111,4 +119,7 @@ class PipelineConfig:
             max_frames=120,
             max_classified_frames=48,
             max_video_seconds=None,
+            evidence=True,
+            evidence_label=True,
+            jpeg_quality=85,
         )
