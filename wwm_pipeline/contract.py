@@ -166,6 +166,8 @@ class Analysis(_Strict):
     frames_with_animal: int = Field(ge=0)
     frames_discarded: Dict[str, int] = Field(default_factory=dict)
     votes: List[Vote] = Field(default_factory=list)
+    # F1-D10: un video más largo que MAX_VIDEO_SECONDS no se rechaza; se analiza hasta ese segundo y se informa aquí.
+    truncated_at_seconds: Optional[float] = Field(default=None, gt=0)
     processing_ms: int = Field(ge=0)
 
     @model_validator(mode="after")

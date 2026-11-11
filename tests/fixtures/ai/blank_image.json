@@ -27,9 +27,11 @@
       "frames_with_animal": 0,
       "frames_discarded": {
         "duplicate": 0,
-        "blurry": 0
+        "blurry": 0,
+        "cap": 0
       },
       "votes": [],
+      "truncated_at_seconds": null,
       "processing_ms": 2100
     },
     "model": {

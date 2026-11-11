@@ -35,15 +35,8 @@ RULES = [
             error_context={"reason": "simulado por ia-fake"},
         ),
     ),
-    (
-        "_toolong",
-        Scenario(
-            "toolong",
-            error_code="IA_DURATION_EXCEEDED",
-            error_message="El video dura 16,2 s y el máximo es 15 s.",
-            error_context={"duration_seconds": 16.2, "max_seconds": 15},
-        ),
-    ),
+    # F1-D10: un video de más de 15 s no se rechaza; se analiza hasta el segundo 15 y se avisa.
+    ("_toolong", Scenario("toolong", fixture="animal_video_truncated")),
     (
         "_badformat",
         Scenario(

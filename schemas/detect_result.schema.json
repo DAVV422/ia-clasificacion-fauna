@@ -70,6 +70,19 @@
           "title": "Processing Ms",
           "type": "integer"
         },
+        "truncated_at_seconds": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Truncated At Seconds"
+        },
         "votes": {
           "items": {
             "$ref": "#/$defs/Vote"

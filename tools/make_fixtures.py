@@ -31,7 +31,7 @@ TIMESTAMP = "2026-11-09T12:00:00Z"
 MODEL_VIDEO = {
     "detector": "MDv5a",
     "classifier": "speciesnet-4.0.2a",
-    "sampling": "10fps@0-2s+4fps",
+    "sampling": "10fps@0-2s+4fps/max60/hasta15s",
     "pipeline_version": "1.0.0",
 }
 MODEL_IMAGE = {**MODEL_VIDEO, "sampling": "image"}
@@ -141,18 +141,20 @@ def image_media(file_name: str) -> dict:
     }
 
 
-def analysis(sampled: int, with_animal: int, votes: list, ms: int, dup=0, blur=0) -> dict:
+def analysis(sampled: int, with_animal: int, votes: list, ms: int, dup=0, blur=0, cap=0, truncated=None) -> dict:
     return {
         "frames_sampled": sampled,
         "frames_with_animal": with_animal,
-        "frames_discarded": {"duplicate": dup, "blurry": blur},
+        "frames_discarded": {"duplicate": dup, "blurry": blur, "cap": cap},
         "votes": votes,
+        "truncated_at_seconds": truncated,
         "processing_ms": ms,
     }
 
 
 def build_all() -> dict:
     jaguar = parse_label(taxa.JAGUAR)
+    puma = parse_label(taxa.PUMA)
     fixtures = {}
 
     bbox = (0.31, 0.12, 0.78, 0.66)
@@ -265,11 +267,32 @@ def build_all() -> dict:
         "fixture-error-decode",
         [{"code": "IA_DECODE_FAILED", "context": {"reason": "moov atom not found"}}],
     )
-    fixtures["error_duration"] = envelope_error(
-        "IA_DURATION_EXCEEDED",
-        "El video dura 16,2 s y el máximo es 15 s.",
-        "fixture-error-duration",
-        [{"code": "IA_DURATION_EXCEEDED", "context": {"duration_seconds": 16.2, "max_seconds": 15}}],
+    # F1-D10: un video de más de 15 s no se rechaza; se analiza hasta el segundo 15 y se avisa.
+    bbox = (0.28, 0.20, 0.70, 0.74)
+    frame = make_frame("puma_truncated", "Puma concolor (puma) · 97 % · 00:03", bbox, color=(55, 65, 45))
+    fixtures["animal_video_truncated"] = envelope_ok(
+        {
+            "media": video_media("CAM03_20260322_051210.mp4", duration=46.6, fps=15.0),
+            "capture": {"captured_at": "2026-03-22T05:12:10", "source": "filename"},
+            "result": {
+                "category": "animal",
+                "taxonomy": taxonomy_of(taxa.PUMA),
+                "confidence": 0.97,
+                "alternatives": [alternative_of(taxa.JAGUAR, 0.02)],
+            },
+            "evidence": evidence(frame, 47, 3.13, bbox, 0.93),
+            "analysis": analysis(
+                60,
+                52,
+                [{"label_id": puma.label_id, "scientific_name": puma.scientific_name, "frames": 23, "score": 0.97}],
+                61840,
+                dup=4,
+                cap=8,
+                truncated=15.0,
+            ),
+            "model": MODEL_VIDEO,
+        },
+        "fixture-animal-video-truncated",
     )
     fixtures["error_unauthorized"] = envelope_error(
         "IA_UNAUTHORIZED", "API key ausente o incorrecta.", "fixture-error-unauthorized"

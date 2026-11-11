@@ -12,7 +12,7 @@ Se compara en minúsculas; gana la primera regla que coincide.
 | El nombre contiene | Respuesta |
 |---|---|
 | `_error_decode` | 422 `IA_DECODE_FAILED` |
-| `_toolong` | 422 `IA_DURATION_EXCEEDED` (`{duration_seconds: 16.2, max_seconds: 15}`) |
+| `_toolong` | 200, puma en un video de 46,6 s con `analysis.truncated_at_seconds = 15.0` (la IA analizó solo los primeros 15 s; F1-D10). Ya **no** devuelve `IA_DURATION_EXCEEDED` |
 | `_badformat` | 415 `IA_INVALID_FORMAT` |
 | `_busy` | 503 `IA_BUSY` |
 | `_notready` | 503 `IA_MODEL_NOT_READY` |

@@ -41,15 +41,17 @@
       "frames_with_animal": 0,
       "frames_discarded": {
         "duplicate": 0,
-        "blurry": 0
+        "blurry": 0,
+        "cap": 0
       },
       "votes": [],
+      "truncated_at_seconds": null,
       "processing_ms": 21000
     },
     "model": {
       "detector": "MDv5a",
       "classifier": "speciesnet-4.0.2a",
-      "sampling": "10fps@0-2s+4fps",
+      "sampling": "10fps@0-2s+4fps/max60/hasta15s",
       "pipeline_version": "1.0.0"
     }
   },

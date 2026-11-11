@@ -13,10 +13,17 @@ from pydantic import ValidationError
 from wwm_pipeline.contract import DetectEnvelope, DetectResult
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures/ai"
-SUCCESS = ["animal_species_video", "animal_genus_video", "blank_image", "person_video", "vehicle_image", "animal_image"]
+SUCCESS = [
+    "animal_species_video",
+    "animal_genus_video",
+    "animal_video_truncated",
+    "blank_image",
+    "person_video",
+    "vehicle_image",
+    "animal_image",
+]
 ERRORS = {
     "error_decode": "IA_DECODE_FAILED",
-    "error_duration": "IA_DURATION_EXCEEDED",
     "error_unauthorized": "IA_UNAUTHORIZED",
     "error_busy": "IA_BUSY",
 }
@@ -83,6 +90,7 @@ def test_detect_result_fields_match_contract():
         "frames_with_animal",
         "frames_discarded",
         "votes",
+        "truncated_at_seconds",
         "processing_ms",
     }
     assert set(data["model"]) == {"detector", "classifier", "sampling", "pipeline_version"}

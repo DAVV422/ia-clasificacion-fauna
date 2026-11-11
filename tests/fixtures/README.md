@@ -18,8 +18,9 @@ Los **schemas JSON** de todos los modelos están en `../../schemas/` (`python -m
 | `animal_genus_video.json` | *Dasyprocta*, identificado solo hasta género |
 | `animal_image.json` | Tapir en una imagen (frame 0) |
 | `blank_image.json` | Imagen vacía (`evidence=null`) |
+| `animal_video_truncated.json` | Puma en un video de 46,6 s: la IA analizó solo los primeros 15 s y lo avisa con `analysis.truncated_at_seconds = 15.0` (F1-D10). El back lo muestra como el aviso `VIDEO_TRUNCATED` |
 | `person_video.json` · `vehicle_image.json` | Clases no animales, con fotograma |
-| `error_decode.json` · `error_duration.json` · `error_unauthorized.json` · `error_busy.json` | Errores de la IA con su código |
+| `error_decode.json` · `error_unauthorized.json` · `error_busy.json` | Errores de la IA con su código. **`error_duration.json` se eliminó** (F1-D10: la IA ya no rechaza por duración) |
 
 ## Paquetes
 | Archivo | Resultado esperado del validador |

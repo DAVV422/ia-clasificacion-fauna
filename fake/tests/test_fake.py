@@ -71,10 +71,10 @@ SUCCESS_CASES = {
     "foto_image.mp4": ("animal", "species"),
     "IMG_0001.JPG": ("animal", "species"),
     "x_slow.mp4": ("animal", "species"),
+    "x_toolong.mp4": ("animal", "species"),
 }
 ERROR_CASES = {
     "x_error_decode.mp4": (422, "IA_DECODE_FAILED"),
-    "x_toolong.mp4": (422, "IA_DURATION_EXCEEDED"),
     "x_badformat.cr2": (415, "IA_INVALID_FORMAT"),
     "x_busy.mp4": (503, "IA_BUSY"),
     "x_notready.mp4": (503, "IA_MODEL_NOT_READY"),
@@ -112,10 +112,13 @@ async def test_error_scenarios(name, expected):
 
 
 @pytest.mark.anyio
-async def test_duration_error_has_context():
+async def test_long_video_is_truncated_not_rejected():
+    """F1-D10: más de 15 s → 200 con analysis.truncated_at_seconds."""
     async with make_client() as client:
         r = await detect(client, "x_toolong.mp4")
-    assert r.json()["error"]["details"][0]["context"] == {"duration_seconds": 16.2, "max_seconds": 15}
+    assert r.status_code == 200
+    data = DetectResult.model_validate(r.json()["data"])
+    assert data.analysis.truncated_at_seconds == 15.0 and data.media.duration_seconds > 15
 
 
 @pytest.mark.anyio
