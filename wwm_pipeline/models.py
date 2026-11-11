@@ -54,6 +54,7 @@ class ModelRegistry:
         self._device = device
         self.detector: Any = None
         self.classifier: Any = None
+        self.taxonomy: Any = None  # TaxonomyIndex con las etiquetas del modelo cargado (HU-IA-14)
         self.load_count = 0
 
     @property
@@ -77,6 +78,10 @@ class ModelRegistry:
 
             logger.info("Cargando SpeciesNet %s", self.classifier_model)
             self.classifier = SpeciesNetClassifier(model_name=self.classifier_model, device=self.device)
+        if self.taxonomy is None:
+            from .taxonomy import TaxonomyIndex
+
+            self.taxonomy = TaxonomyIndex(self.classifier.labels.values())
         return self
 
     def _load_megadetector(self):

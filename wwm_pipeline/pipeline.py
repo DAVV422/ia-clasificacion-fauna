@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from .aggregation import Decision, legacy_best
-from .classification import classify_crop
+from .classification import classify_crop, classify_crop_raw, to_species_list
 from .config import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, PipelineConfig
 from .detection import detect
 from .errors import PipelineCancelled, PipelineError
@@ -50,6 +50,8 @@ class FileResult:
     frames_discarded: Dict[str, int] = field(default_factory=dict)
     frames_classified: int = 0
     truncated_at_seconds: Optional[float] = None
+    # --- taxonomía completa (HU-IA-14); solo en los presets densos ---
+    taxonomy: Optional[Any] = None  # contract.Taxonomy del resultado, o None si no es fauna
 
     @property
     def frames_sampled(self) -> int:
@@ -266,15 +268,18 @@ def _classify_video_dense(
             raise PipelineCancelled(file_name)
         if on_progress:
             on_progress("classification", i, len(chosen))
-        cand.detection["species"] = classify_crop(cand.crop, models, f"{file_name}#{cand.frame.index}")
+        labels = classify_crop_raw(cand.crop, models, f"{file_name}#{cand.frame.index}")
+        cand.detection["species"] = to_species_list(labels)
+        cand.detection["labels_raw"] = labels
     candidates.clear()  # libera los recortes
 
     all_dets = [d for f in frames for d in f.detections]
+    decision = legacy_best(all_dets)
     fps = sampled.fps
     return FileResult(
         file_name,
         "video",
-        legacy_best(all_dets),
+        decision,
         frames,
         fps=fps,
         frame_count=sampled.frame_count,
@@ -283,4 +288,24 @@ def _classify_video_dense(
         frames_discarded=dict(sampled.discarded),
         frames_classified=len(chosen),
         truncated_at_seconds=sampled.truncated_at_seconds,
+        taxonomy=_taxonomy_of_decision(all_dets, decision, models, config.common_name_lang),
     )
+
+
+def taxonomy_index_of(models: Models):
+    """El índice del modelo cargado; si el modelo no lo expone, uno vacío que interpreta cada etiqueta."""
+    from .taxonomy import TaxonomyIndex
+
+    index = getattr(models, "taxonomy", None)
+    return index if index is not None else TaxonomyIndex([], common_names_es=None)
+
+
+def _taxonomy_of_decision(detections, decision: Decision, models: Models, lang: str):
+    """La taxonomía completa de la etiqueta ganadora (la misma que eligió ``legacy_best``)."""
+    if decision.category != "animal" or not decision.label:
+        return None
+    for det in detections:
+        labels = det.get("labels_raw") or []
+        if labels and det["species"][0]["species"] == decision.label and labels[0][1] == decision.confidence:
+            return taxonomy_index_of(models).to_taxonomy(labels[0][0], lang)
+    return None

@@ -2,7 +2,9 @@
 
 from typing import List, Optional
 
+from tools._fixture_taxa import FIXTURE_LABELS
 from wwm_pipeline.models import RawBox
+from wwm_pipeline.taxonomy import TaxonomyIndex
 
 JAGUAR = "9b7fea59-cfa3-499c-a420-bcf36277dcd8;mammalia;carnivora;felidae;panthera;onca;jaguar"
 PUMA = "9c564562-9429-405c-8529-04cff7752282;mammalia;carnivora;felidae;puma;concolor;puma"
@@ -24,6 +26,7 @@ class FakeModels:
         self.category_id = category_id
         self.detector_calls = 0
         self.classifier_calls = 0
+        self.taxonomy = TaxonomyIndex(FIXTURE_LABELS + self.labels)
 
     def run_detector(self, frame_rgb) -> List[RawBox]:
         self.detector_calls += 1

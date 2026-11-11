@@ -16,6 +16,8 @@ SETUPTOOLS_VENDOR = os.path.join(os.path.dirname(setuptools.__file__), "_vendor"
 datas = [
     (os.path.join(ROOT, "public", "logo.ico"), "public"),
     (os.path.join(ROOT, "public", "logo.jpeg"), "public"),
+    # HU-IA-14: nombres comunes en español (wwm_pipeline/taxonomy.py los busca junto al módulo)
+    (os.path.join(ROOT, "wwm_pipeline", "data", "common_names_es.csv"), os.path.join("wwm_pipeline", "data")),
 ]
 binaries = []
 hiddenimports = ["desktop.ui.legacy_window", "backports", "backports.tarfile"]

@@ -42,6 +42,9 @@ class PipelineConfig:
     blur_ratio: float = 0.35  # borroso si la nitidez < blur_ratio × la mediana del video
     max_gap_seconds: float = 1.0  # nunca se descartan frames durante más de este tiempo seguido
     classify_crop_max_px: int = 640  # lado mayor del recorte que se guarda para clasificar (SpeciesNet usa 480)
+    # F1-D9: "en" (por defecto, los nombres de SpeciesNet) | "es" (tabla de ~135 especies de Bolivia; las
+    # demás siguen en inglés aunque se elija español).
+    common_name_lang: str = "en"
 
     def with_crops(self, crops_dir: Path, url_prefix: str = "/detections") -> "PipelineConfig":
         return replace(self, save_crops=True, crops_dir=Path(crops_dir), crops_url_prefix=url_prefix)
