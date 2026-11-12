@@ -2,7 +2,7 @@
 line-length = 120
 target-version = "py39"
 # El código heredado (API v1, ventana del prototipo, copia congelada) se revisa cuando se reescriba.
-extend-exclude = ["app", "desktop/ui/legacy_window.py", "eval/legacy/detector_legacy.py", "build", "dist", "venv", ".venv"]
+extend-exclude = ["third_party", "app", "desktop/ui/legacy_window.py", "eval/legacy/detector_legacy.py", "build", "dist", "venv", ".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]

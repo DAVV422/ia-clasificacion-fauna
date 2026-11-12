@@ -177,7 +177,8 @@ class WildlifeDesktopApp(tk.Tk):
         except Exception:
             pass
 
-        self.detector = WildlifeDetector(paths.megadetector_path())  # HU-DS-04: pesos en AppData
+        # HU-DS-04: pesos en AppData · HU-DS-11: SpeciesNet desde su carpeta local, sin Kaggle
+        self.detector = WildlifeDetector(paths.megadetector_path(), paths.speciesnet_dir())
         self.log_queue: queue.Queue = queue.Queue()
         self.job_events: queue.Queue = queue.Queue()  # eventos de FolderJob (HU-DS-01)
         self.stop_event = threading.Event()
@@ -528,6 +529,13 @@ class WildlifeDesktopApp(tk.Tk):
                 if paths.migrate_legacy_model():
                     self._log("📦  Modelo copiado desde la instalación anterior", "ok")
                 _download_weights(MEGADETECTOR_URL, paths.megadetector_path(), log_fn=self._log)
+                if not (paths.speciesnet_dir() / "info.json").is_file():
+                    # HU-DS-11: SpeciesNet ya no se baja de Kaggle; hasta HU-DS-13 (descarga con verificación)
+                    # se prepara con tools/prepare_models.py.
+                    raise RuntimeError(
+                        f"Falta SpeciesNet en {paths.speciesnet_dir()}. "
+                        "Prepáralo con: python tools/prepare_models.py"
+                    )
                 configure_threads()  # deja un núcleo libre para la interfaz
                 self.detector.load_model()
                 self._log("✅  Modelos listos. ¡Puedes iniciar el análisis!", "ok")

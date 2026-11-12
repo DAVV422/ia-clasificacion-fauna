@@ -15,8 +15,7 @@ from pathlib import Path
 from app.config import CONFIDENCE_THRESHOLD, MEGADETECTOR_PATH, SPECIESNET_MODEL_NAME
 from wwm_pipeline.models import ModelRegistry
 
-# torch.hub/ultralytics instalan paquetes por su cuenta al cargar YOLOv5 si no se desactiva
-# (hallazgo de la fase 0; la solución de fondo es HU-DS-11).
+# YOLOv5 intenta instalar paquetes por su cuenta al cargar si no se desactiva (hallazgo de la fase 0).
 os.environ.setdefault("YOLOv5_AUTOINSTALL", "false")
 os.environ.setdefault("YOLO_AUTOINSTALL", "false")
 
@@ -24,8 +23,9 @@ logger = logging.getLogger("uvicorn.error")
 
 
 class WildlifeDetector:
-    def __init__(self, detector_path: Path = MEGADETECTOR_PATH):
-        self.models = ModelRegistry(Path(detector_path), SPECIESNET_MODEL_NAME, md_threshold=CONFIDENCE_THRESHOLD)
+    def __init__(self, detector_path: Path = MEGADETECTOR_PATH, classifier_model=SPECIESNET_MODEL_NAME):
+        """``classifier_model``: la API pasa el identificador de Kaggle; el escritorio, su carpeta local (HU-DS-11)."""
+        self.models = ModelRegistry(Path(detector_path), classifier_model, md_threshold=CONFIDENCE_THRESHOLD)
         self.device = self.models.device
         logger.info(f"Using device: {self.device} for inference.")
 

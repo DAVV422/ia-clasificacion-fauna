@@ -45,11 +45,11 @@ def test_early_animal_detected():
     """CA-6 (F-EARLY): el prototipo da "sin animal"; el muestreo denso lo encuentra en los primeros 2 s."""
     os.environ.setdefault("YOLOv5_AUTOINSTALL", "false")
     os.environ.setdefault("YOLO_AUTOINSTALL", "false")
+    from tests.model_paths import registry
     from wwm_pipeline.config import PipelineConfig
-    from wwm_pipeline.models import ModelRegistry
     from wwm_pipeline.pipeline import classify_file
 
-    models = ModelRegistry(MD).load()
+    models = registry().load()
     legacy = classify_file(F_EARLY, None, PipelineConfig.legacy_desktop(), models)
     assert legacy.decision.label is None  # lo que hace hoy la app (sondeo del 10/11/2026)
 

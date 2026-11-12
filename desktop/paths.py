@@ -21,6 +21,7 @@ from typing import Iterable, Iterator, Optional
 
 APP_DIR_NAME = "WWM"
 MEGADETECTOR_FILE = "md_v5a.0.0.pt"
+SPECIESNET_DIR = "speciesnet-4.0.2a"  # HU-DS-11: SpeciesNet desde una carpeta local (info.json + 4 archivos)
 
 
 def data_dir() -> Path:
@@ -49,6 +50,10 @@ def tmp_dir() -> Path:
 
 def megadetector_path() -> Path:
     return models_dir() / MEGADETECTOR_FILE
+
+
+def speciesnet_dir() -> Path:
+    return models_dir() / SPECIESNET_DIR
 
 
 def clear_tmp() -> None:
@@ -137,3 +142,5 @@ def configure_env() -> None:
     # torch.hub/ultralytics instalan paquetes por su cuenta al cargar YOLOv5 (hallazgo de la fase 0).
     os.environ.setdefault("YOLOv5_AUTOINSTALL", "false")
     os.environ.setdefault("YOLO_AUTOINSTALL", "false")
+    # HU-DS-11: ultralytics resuelve one.one.one.one y dns.google al importarse para saber si hay internet.
+    os.environ.setdefault("YOLO_OFFLINE", "true")

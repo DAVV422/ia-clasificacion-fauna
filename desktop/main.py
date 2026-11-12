@@ -9,6 +9,8 @@ Uso:
     python -m desktop.main              abre la app
     python -m desktop.main --version    imprime la versión
     python -m desktop.main --selftest   verifica rutas, logs e imports (sin cargar los modelos); código 0 si todo bien
+    python -m desktop.main --smoke DIR  carga los modelos locales y clasifica los archivos de DIR sin abrir la
+                                        ventana (HU-DS-11); imprime un JSON; código 0 si todo bien
 """
 
 import atexit
@@ -90,6 +92,38 @@ def selftest() -> int:
     return 1 if failures else 0
 
 
+def smoke(folder: str) -> int:
+    """HU-DS-11: los modelos de la carpeta local y el pipeline, sin ventana. Lo usan el CI y la prueba en PC limpia."""
+    import json
+    import time
+    from pathlib import Path
+
+    from desktop import paths
+    from desktop.job.folder_job import configure_threads, list_media
+    from desktop.logging_setup import log_event
+    from wwm_pipeline.config import PipelineConfig
+    from wwm_pipeline.models import ModelRegistry
+    from wwm_pipeline.pipeline import classify_file
+
+    report: dict = {"models_dir": str(paths.models_dir()), "files": {}}
+    t0 = time.monotonic()
+    try:
+        configure_threads()
+        models = ModelRegistry(paths.megadetector_path(), paths.speciesnet_dir()).load()
+        report["load_s"] = round(time.monotonic() - t0, 1)
+        for path in list_media(Path(folder)):
+            result = classify_file(path, path.name, PipelineConfig.desktop(), models)
+            tax = result.taxonomy.scientific_name if result.taxonomy else None
+            report["files"][path.name] = {"category": result.decision.category, "taxon": tax}
+        report["ok"] = True
+    except Exception as exc:  # el smoke informa, no se cae sin decir nada
+        report.update(ok=False, error=f"{type(exc).__name__}: {exc}")
+    report["total_s"] = round(time.monotonic() - t0, 1)
+    log_event("desktop.smoke.completed", "smoke", report=report)
+    print(json.dumps(report, ensure_ascii=False))
+    return 0 if report["ok"] else 1
+
+
 def run(argv=None) -> int:
     multiprocessing.freeze_support()
     _fix_streams()
@@ -118,6 +152,13 @@ def run(argv=None) -> int:
     if "--selftest" in args:
         _close_splash()
         return selftest()
+    if "--smoke" in args:
+        _close_splash()
+        i = args.index("--smoke")
+        if i + 1 >= len(args):
+            print("uso: --smoke <carpeta>")
+            return 2
+        return smoke(args[i + 1])
 
     # Evita que un subproceso que heredó el entorno vuelva a abrir la ventana (comportamiento del prototipo).
     if os.environ.get("WWM_GUI_LOCKED") == "1":

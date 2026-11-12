@@ -1,8 +1,12 @@
 """Carga de los modelos (MegaDetector + SpeciesNet), una sola vez y desde rutas recibidas.
 
 ``ModelRegistry`` no usa rutas fijas ni lee variables de entorno: quien lo crea (la API o el
-escritorio) le pasa dónde están los pesos. En la fase 0 se mantiene ``torch.hub`` para cargar
-YOLOv5 (igual que el prototipo); el modo offline sin ``torch.hub`` es HU-DS-11.
+escritorio) le pasa dónde están los pesos.
+
+Sin conexión (HU-DS-11): MegaDetector se carga con el código de YOLOv5 copiado en
+``third_party/yolov5_hub`` (``torch.hub.load(..., source="local")``: el mismo código que bajaba
+``torch.hub``, sin bajarlo), y SpeciesNet desde una carpeta local con su ``info.json``. Ninguna de las dos
+cargas sale a internet. (El paquete ``yolov5`` de pip no sirve: al cargar consulta Hugging Face y GitHub.)
 
 Interfaz que usa el pipeline (y que imitan los modelos falsos de los tests):
 - ``run_detector(frame_rgb) -> List[RawBox]``
@@ -10,13 +14,22 @@ Interfaz que usa el pipeline (y que imitan los modelos falsos de los tests):
 """
 
 import logging
+import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Protocol
+from typing import Any, List, Optional, Protocol, Union
+
+from .errors import PipelineError
 
 logger = logging.getLogger("wwm_pipeline.models")
 
-SPECIESNET_MODEL_NAME = "kaggle:google/speciesnet/pyTorch/v4.0.2a/1"
+YOLOV5_HUB_DIR = Path("third_party") / "yolov5_hub"
+
+
+def default_yolov5_dir() -> Path:
+    """El código de YOLOv5 copiado en el repo (o dentro del ejecutable de PyInstaller)."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
+    return base / YOLOV5_HUB_DIR
 
 
 @dataclass(frozen=True)
@@ -44,12 +57,16 @@ class ModelRegistry:
     def __init__(
         self,
         detector_path: Path,
-        classifier_model: str = SPECIESNET_MODEL_NAME,
+        classifier_model: Union[str, Path],
         device: Optional[str] = None,
         md_threshold: float = 0.30,
+        yolov5_dir: Optional[Path] = None,
     ):
+        """``classifier_model``: la carpeta local de SpeciesNet (con ``info.json``). La API puede pasar todavía
+        un identificador de Kaggle, pero el escritorio siempre pasa una carpeta (HU-DS-11)."""
         self.detector_path = Path(detector_path)
-        self.classifier_model = classifier_model
+        self.classifier_model = str(classifier_model)
+        self.yolov5_dir = Path(yolov5_dir) if yolov5_dir is not None else default_yolov5_dir()
         self.md_threshold = md_threshold
         self._device = device
         self.detector: Any = None
@@ -88,16 +105,15 @@ class ModelRegistry:
         import torch
 
         path = str(self.detector_path.resolve())
-        logger.info("Cargando MegaDetector desde %s", path)
-        try:
-            model = torch.hub.load(
-                "ultralytics/yolov5", "custom", path=path, device=self.device, force_reload=False, trust_repo=True
-            )
-        except Exception as exc:  # mismo reintento que el prototipo (fase 0)
-            logger.warning("torch.hub falló (%s); reintentando con force_reload", exc)
-            model = torch.hub.load(
-                "ultralytics/yolov5", "custom", path=path, device=self.device, force_reload=True, trust_repo=True
-            )
+        hub_dir = self.yolov5_dir.resolve()
+        logger.info("Cargando MegaDetector desde %s (YOLOv5 local: %s)", path, hub_dir)
+        if not (hub_dir / "hubconf.py").is_file():
+            raise PipelineError("MODEL_LOAD_FAILED", f"No está el código de YOLOv5 en {hub_dir}")
+        model = torch.hub.load(str(hub_dir), "custom", path=path, device=self.device, source="local")
+        # hubconf atrapa los errores de DetectMultiBackend y devuelve un modelo crudo, sin AutoShape (que espera
+        # tensores, no imágenes): mejor fallar al cargar que con un error raro en el primer frame.
+        if type(model).__name__ != "AutoShape":
+            raise PipelineError("MODEL_LOAD_FAILED", "YOLOv5 no pudo cargar MegaDetector (falta código de YOLOv5)")
         model.conf = self.md_threshold
         return model
 

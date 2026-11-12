@@ -18,6 +18,9 @@ datas = [
     (os.path.join(ROOT, "public", "logo.jpeg"), "public"),
     # HU-IA-14: nombres comunes en español (wwm_pipeline/taxonomy.py los busca junto al módulo)
     (os.path.join(ROOT, "wwm_pipeline", "data", "common_names_es.csv"), os.path.join("wwm_pipeline", "data")),
+    # HU-DS-11: el código de YOLOv5 que carga MegaDetector sin torch.hub remoto (wwm_pipeline.models busca
+    # <_MEIPASS>/third_party/yolov5_hub). Va como fuente: torch.hub.load(..., source="local") lo importa de ahí.
+    (os.path.join(ROOT, "third_party", "yolov5_hub"), os.path.join("third_party", "yolov5_hub")),
 ]
 binaries = []
 hiddenimports = ["desktop.ui.legacy_window", "backports", "backports.tarfile"]

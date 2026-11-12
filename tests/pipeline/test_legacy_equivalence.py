@@ -27,9 +27,9 @@ pytestmark = [
 def models():
     os.environ.setdefault("YOLOv5_AUTOINSTALL", "false")
     os.environ.setdefault("YOLO_AUTOINSTALL", "false")
-    from wwm_pipeline.models import ModelRegistry
+    from tests.model_paths import registry
 
-    return ModelRegistry(MD, device="cpu").load()
+    return registry(device="cpu").load()
 
 
 def test_legacy_preset_matches_expected(models):

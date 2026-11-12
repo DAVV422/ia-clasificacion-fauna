@@ -30,9 +30,9 @@ pytestmark = [
 def models():
     os.environ.setdefault("YOLOv5_AUTOINSTALL", "false")
     os.environ.setdefault("YOLO_AUTOINSTALL", "false")
-    from wwm_pipeline.models import ModelRegistry
+    from tests.model_paths import registry
 
-    return ModelRegistry(MD).load()
+    return registry().load()
 
 
 @pytest.fixture

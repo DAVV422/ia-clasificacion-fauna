@@ -56,9 +56,10 @@ def test_megadetector_downloaded_to_appdata(data_dir, server):
 
 
 def test_window_uses_appdata_model_path():
-    """La ventana crea el detector con la ruta de AppData (no con app.config.MEGADETECTOR_PATH)."""
+    """La ventana crea el detector con las rutas de AppData (no con app.config.MEGADETECTOR_PATH), y SpeciesNet
+    desde su carpeta local (HU-DS-11), no desde Kaggle."""
     source = (Path(__file__).resolve().parents[2] / "desktop/ui/legacy_window.py").read_text(encoding="utf-8")
-    assert "WildlifeDetector(paths.megadetector_path())" in source
+    assert "WildlifeDetector(paths.megadetector_path(), paths.speciesnet_dir())" in source
     assert "MEGADETECTOR_PATH" not in source
 
 

@@ -191,8 +191,8 @@ def test_pipeline_result_has_full_taxonomy(tmp_path, lang, common):
 def test_model_registry_builds_index():
     os.environ.setdefault("YOLOv5_AUTOINSTALL", "false")
     os.environ.setdefault("YOLO_AUTOINSTALL", "false")
-    from wwm_pipeline.models import ModelRegistry
+    from tests.model_paths import registry
 
-    models = ModelRegistry(ROOT / "models/md_v5a.0.0.pt").load()
+    models = registry().load()
     assert len(models.taxonomy) >= 2400
     assert models.taxonomy.to_taxonomy(JAGUAR).family == "felidae"
