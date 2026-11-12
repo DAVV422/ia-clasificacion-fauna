@@ -16,24 +16,10 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext, messagebox
 
-# --- HIDDEN IMPORTS PARA PYINSTALLER ---
-# PyInstaller no detecta dependencias dinámicas cargadas por torch.hub (YOLOv5).
-# Al importarlas aquí, forzamos a PyInstaller a incluirlas en el .exe.
-try:
-    import ultralytics
-    import pandas
-    import yaml
-    import tqdm
-    import torchvision
-    import speciesnet
-    import speciesnet.classifier
-    import cloudpathlib
-    import kagglehub
-    import onnx2torch
-    import onnx
-except ImportError:
-    pass
-# ---------------------------------------
+# HU-DS-12 (CA-3): las librerías que usa el código de YOLOv5 (ultralytics, pandas, yaml, tqdm, torchvision,
+# speciesnet, …) ya no se importan aquí "para que PyInstaller las incluya": las declara desktop/desktop.spec
+# (collect_all + hiddenimports). Importarlas al abrir la ventana costaba ~3 s antes de mostrarla; ahora se
+# cargan en segundo plano, con los modelos.
 
 from desktop import __version__
 from desktop import paths

@@ -26,8 +26,11 @@ class WildlifeDetector:
     def __init__(self, detector_path: Path = MEGADETECTOR_PATH, classifier_model=SPECIESNET_MODEL_NAME):
         """``classifier_model``: la API pasa el identificador de Kaggle; el escritorio, su carpeta local (HU-DS-11)."""
         self.models = ModelRegistry(Path(detector_path), classifier_model, md_threshold=CONFIDENCE_THRESHOLD)
-        self.device = self.models.device
-        logger.info(f"Using device: {self.device} for inference.")
+
+    @property
+    def device(self):
+        """Perezoso (HU-DS-12): consultarlo importa torch (~2 s); la ventana crea el detector antes de mostrarse."""
+        return self.models.device
 
     @property
     def model(self):

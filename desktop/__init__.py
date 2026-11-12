@@ -3,4 +3,4 @@
 Única fuente de la versión: la usan el título de la ventana, los logs, ``--version`` y el instalador.
 """
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"

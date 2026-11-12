@@ -1,0 +1,39 @@
+WWM Clasificador de cámaras trampa — licencias
+=============================================
+
+La aplicación
+-------------
+Copyright (c) 2026 CETERIS404, para WWF Bolivia.
+Se distribuye bajo la GNU Affero General Public License v3.0 (archivo LICENSE,
+junto a este). Su código fuente completo está en:
+  https://github.com/DAVV422/ia-clasificacion-fauna
+Puedes usarla, copiarla y modificarla bajo esa misma licencia.
+
+Modelos de IA que usa
+---------------------
+- MegaDetector v5a — Microsoft AI for Good / Dan Morris. Licencia MIT.
+  https://github.com/agentmorris/MegaDetector
+- SpeciesNet 4.0.2a — Google. Licencia Apache 2.0.
+  https://github.com/google/cameratrapai
+
+Componentes de terceros incluidos
+---------------------------------
+- YOLOv5 (código para cargar MegaDetector) — Ultralytics. AGPL-3.0.
+  https://github.com/ultralytics/yolov5
+- ultralytics — Ultralytics. AGPL-3.0.
+- yolov5 (paquete de Python) — GPL-3.0.
+- PyTorch y torchvision — BSD-3-Clause.
+- OpenCV — Apache 2.0.
+- NumPy, pandas, Pillow, Pydantic, psutil, requests — licencias BSD, MIT,
+  HPND y Apache 2.0, según cada proyecto.
+- Python — PSF License.
+
+El texto completo de la AGPL-3.0 está en LICENSE. Los de los demás
+componentes están en la página de cada proyecto y, para varios de ellos,
+dentro de la carpeta de instalación (_internal\*.dist-info).
+
+Sin garantía
+------------
+La aplicación se entrega "tal cual", sin garantía de ningún tipo (secciones 15
+y 16 de la licencia AGPL-3.0). Las clasificaciones de la IA pueden tener
+errores: revisa los fotogramas de evidencia antes de usar los resultados.

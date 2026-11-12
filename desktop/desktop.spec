@@ -25,7 +25,12 @@ datas = [
     (os.path.join(ROOT, "desktop", "models", "model_manifest.json"), os.path.join("desktop", "models")),
 ]
 binaries = []
-hiddenimports = ["desktop.ui.legacy_window", "backports", "backports.tarfile"]
+# HU-DS-12: lo que importaba la ventana del prototipo "para PyInstaller" (lo usa el código de YOLOv5 en tiempo de
+# ejecución, cargado con torch.hub source="local"); ahora se declara aquí y la ventana abre sin importarlo.
+hiddenimports = [
+    "desktop.ui.legacy_window", "backports", "backports.tarfile",
+    "pandas", "yaml", "tqdm", "torchvision", "speciesnet.classifier", "kagglehub", "onnx", "seaborn", "scipy",
+]
 for pkg in ("cloudpathlib", "speciesnet", "ultralytics", "onnx2torch"):
     d, b, h = collect_all(pkg)
     datas += d
@@ -51,18 +56,11 @@ a = Analysis(
     optimize=0,
 )
 pyz = PYZ(a.pure)
-splash = Splash(
-    os.path.join(ROOT, "public", "splash.png"),
-    binaries=a.binaries,
-    datas=a.datas,
-    text_pos=None,
-    minify_script=True,
-    always_on_top=True,
-)
+# HU-DS-12: sin el splash del onefile viejo. Con onedir la ventana aparece enseguida, y un splash "siempre
+# adelante" taparía las pantallas que se abren antes de la principal (descarga de modelos, equipo no compatible).
 exe = EXE(
     pyz,
     a.scripts,
-    splash,
     [],
     exclude_binaries=True,
     name="WWMClasificador",
@@ -76,7 +74,6 @@ coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
-    splash.binaries,
     strip=False,
     upx=False,
     name="WWMClasificador",
