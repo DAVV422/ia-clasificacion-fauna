@@ -1,0 +1,47 @@
+{
+ "manifest_version": 1,
+ "release": "models-v1",
+ "artifacts": [
+  {
+   "id": "megadetector",
+   "name": "MegaDetector v5a",
+   "version": "5.0",
+   "url": "https://github.com/DAVV422/ia-clasificacion-fauna/releases/download/models-v1/md_v5a.0.0.pt",
+   "size": 280766885,
+   "sha256": "94e88fe97c8050f2e3d0cc4cb4f64729d639d74312dcbe2f74f8eecd3b01b276",
+   "dest": "md_v5a.0.0.pt"
+  },
+  {
+   "id": "speciesnet",
+   "name": "SpeciesNet 4.0.2a",
+   "version": "4.0.2a",
+   "url": "https://github.com/DAVV422/ia-clasificacion-fauna/releases/download/models-v1/speciesnet-4.0.2a.zip",
+   "size": 224784855,
+   "sha256": "cd6326523948d3fbe2b6ff6905135c4fe5a4f99cd0046f6674add0264853914f",
+   "dest": "speciesnet-4.0.2a/",
+   "unpack": true,
+   "files": {
+    "always_crop_99710272_22x8_v12_epoch_00148.labels.20251208.txt": {
+     "size": 255684,
+     "sha256": "e7f14eb90514af42a3351db648dc1358daa6f1175b71e548e65a9e7678c79664"
+    },
+    "always_crop_99710272_22x8_v12_epoch_00148.pt": {
+     "size": 224393837,
+     "sha256": "d099632044e92a0446869e06e5eb282e24706d5266b4acf5b42f5f23e2b50ade"
+    },
+    "geofence_release.20251208.json": {
+     "size": 5358946,
+     "sha256": "bf08da6263405a125caf49d1d221e82834e3d6f23580619945627c88e31d2fba"
+    },
+    "info.json": {
+     "size": 355,
+     "sha256": "247a91a9a861eaeb083bc4d312ddc0f2542490173e3855f9782692f71beacc42"
+    },
+    "taxonomy_release.20251208.txt": {
+     "size": 357403,
+     "sha256": "156673d5f66be4e898fdb1cd2ed518a35a36d3f51578b26833d1d3f5deebc815"
+    }
+   }
+  }
+ ]
+}

@@ -32,8 +32,17 @@ def data_dir() -> Path:
     return Path(base) / APP_DIR_NAME
 
 
+_models_dir_override: Optional[Path] = None
+
+
+def set_models_dir(folder: Optional[Path]) -> None:
+    """HU-DS-13 (F4-D5): la carpeta elegida al iniciar (la de la instalación en la variante completa)."""
+    global _models_dir_override
+    _models_dir_override = Path(folder) if folder is not None else None
+
+
 def models_dir() -> Path:
-    return data_dir() / "models"
+    return _models_dir_override or data_dir() / "models"
 
 
 def cache_dir() -> Path:

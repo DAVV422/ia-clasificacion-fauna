@@ -21,6 +21,8 @@ datas = [
     # HU-DS-11: el código de YOLOv5 que carga MegaDetector sin torch.hub remoto (wwm_pipeline.models busca
     # <_MEIPASS>/third_party/yolov5_hub). Va como fuente: torch.hub.load(..., source="local") lo importa de ahí.
     (os.path.join(ROOT, "third_party", "yolov5_hub"), os.path.join("third_party", "yolov5_hub")),
+    # HU-DS-13: qué modelos descargar del release models-v1 (URL, tamaño y sha256); model_store lo busca ahí.
+    (os.path.join(ROOT, "desktop", "models", "model_manifest.json"), os.path.join("desktop", "models")),
 ]
 binaries = []
 hiddenimports = ["desktop.ui.legacy_window", "backports", "backports.tarfile"]

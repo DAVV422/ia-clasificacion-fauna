@@ -1,7 +1,5 @@
-"""HU-DS-04 · CA-3 — MegaDetector se busca y se descarga en %LOCALAPPDATA%\\WWM\\models (no junto al exe)."""
+"""HU-DS-04 · CA-3 — MegaDetector se busca en %LOCALAPPDATA%\\WWM\\models (no junto al exe). Descargarlo es HU-DS-13."""
 
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -17,42 +15,8 @@ def data_dir(tmp_path, monkeypatch):
     return tmp_path / "wwm"
 
 
-@pytest.fixture
-def server():
-    hits = []
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):  # noqa: N802
-            hits.append(self.path)
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(PAYLOAD)))
-            self.end_headers()
-            self.wfile.write(PAYLOAD)
-
-        def log_message(self, *args):
-            pass
-
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{httpd.server_address[1]}/md_v5a.0.0.pt", hits
-    httpd.shutdown()
-
-
 def test_megadetector_path_is_in_data_dir(data_dir):
     assert paths.megadetector_path() == data_dir / "models" / "md_v5a.0.0.pt"
-
-
-def test_megadetector_downloaded_to_appdata(data_dir, server):
-    from desktop.ui.legacy_window import _download_weights
-
-    url, hits = server
-    target = paths.megadetector_path()
-    _download_weights(url, target)
-    assert target.read_bytes() == PAYLOAD and len(hits) == 1
-    assert not target.with_suffix(".tmp").exists()
-
-    _download_weights(url, target)  # ya existe: no se vuelve a descargar
-    assert len(hits) == 1
 
 
 def test_window_uses_appdata_model_path():

@@ -46,7 +46,6 @@ PROJECT_ROOT = resource_dir()
 logging.getLogger("uvicorn.error").handlers = []
 logging.getLogger("uvicorn.error").propagate = True
 
-from app.config import MEGADETECTOR_URL
 from app.detector import WildlifeDetector
 from desktop.job.actions import make_species_action
 from desktop.job.events import FileDone, JobDone, JobError, JobStarted, Progress
@@ -54,7 +53,6 @@ from desktop.job.folder_job import FolderJob, configure_threads, list_media
 from desktop.job.job_log import JobLog
 from desktop.ui import texts
 
-import requests
 
 # Peso de cada etapa del pipeline dentro del avance de un archivo (para la barra de progreso).
 STAGE_SPAN = {
@@ -65,78 +63,6 @@ STAGE_SPAN = {
 }
 STAGE_LABEL = {"sampling": "lectura", "detection": "detección", "classification": "clasificación", "save": "guardando"}
 
-
-# ---------------------------------------------------------------------------
-# Descarga de pesos independiente (sin FastAPI) para modo escritorio
-# ---------------------------------------------------------------------------
-def _download_weights(url: str, dest_path: Path, log_fn=None):
-    """Descarga los pesos del modelo si no existen. Reporta progreso y reanuda si falla."""
-    if dest_path.exists():
-        if log_fn:
-            log_fn(f"✅  Modelo encontrado en {dest_path.name}", "ok")
-        return
-
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest_path.with_suffix(".tmp")
-
-    max_retries = 5
-    for attempt in range(max_retries):
-        headers = {}
-        downloaded = 0
-        mode = "wb"
-        
-        if tmp.exists():
-            downloaded = tmp.stat().st_size
-            headers["Range"] = f"bytes={downloaded}-"
-            mode = "ab"
-
-        if log_fn:
-            msg = f"⬇️   Descargando {dest_path.name}…"
-            if downloaded > 0:
-                msg = f"⬇️   Reanudando {dest_path.name} desde {downloaded/1024/1024:.0f} MB…"
-            log_fn(msg, "warn")
-
-        try:
-            with requests.get(url, headers=headers, stream=True, timeout=60) as r:
-                r.raise_for_status()
-                
-                # Si el servidor ignora "Range", devuelve 200 en vez de 206 (Partial Content)
-                if r.status_code == 200:
-                    downloaded = 0
-                    mode = "wb"
-                
-                content_len = int(r.headers.get("content-length", 0))
-                total = downloaded + content_len
-                
-                with open(tmp, mode) as f:
-                    for chunk in r.iter_content(chunk_size=1024 * 1024):
-                        if chunk:
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                            if total and log_fn:
-                                pct = downloaded / total * 100
-                                log_fn(
-                                    f"   MegaDetector: {pct:.0f}%  "
-                                    f"({downloaded/1024/1024:.0f} / {total/1024/1024:.0f} MB)",
-                                    "dim",
-                                )
-            tmp.rename(dest_path)
-            if log_fn:
-                log_fn("✅  MegaDetector descargado correctamente.", "ok")
-            return
-            
-        except Exception as exc:
-            if log_fn:
-                log_fn(f"⚠️  Conexión interrumpida: {exc}", "error")
-            if attempt == max_retries - 1:
-                if tmp.exists():
-                    tmp.unlink()
-                raise RuntimeError(f"Fallo de red tras {max_retries} intentos.")
-            else:
-                if log_fn:
-                    log_fn("🔄  Reintentando en 3 segundos...", "warn")
-                import time
-                time.sleep(3)
 
 # ---------------------------------------------------------------------------
 # Colores de la UI (Tema Blanco y Negro)
@@ -521,21 +447,11 @@ class WildlifeDesktopApp(tk.Tk):
     # Inicialización de modelos (ejecuta en hilo secundario)
     # -----------------------------------------------------------------------
     def _init_models_async(self):
-        self._log("⏳  Verificando / descargando modelos de IA…", "warn")
-        self._log("    (La primera vez puede tardar 3-8 min dependiendo de tu conexión)", "dim")
+        self._log("⏳  Cargando el modelo…", "warn")
 
         def _task():
             try:
-                if paths.migrate_legacy_model():
-                    self._log("📦  Modelo copiado desde la instalación anterior", "ok")
-                _download_weights(MEGADETECTOR_URL, paths.megadetector_path(), log_fn=self._log)
-                if not (paths.speciesnet_dir() / "info.json").is_file():
-                    # HU-DS-11: SpeciesNet ya no se baja de Kaggle; hasta HU-DS-13 (descarga con verificación)
-                    # se prepara con tools/prepare_models.py.
-                    raise RuntimeError(
-                        f"Falta SpeciesNet en {paths.speciesnet_dir()}. "
-                        "Prepáralo con: python tools/prepare_models.py"
-                    )
+                # HU-DS-13: desktop.main ya verificó (y descargó si hacía falta) los modelos antes de abrir la ventana.
                 configure_threads()  # deja un núcleo libre para la interfaz
                 self.detector.load_model()
                 self._log("✅  Modelos listos. ¡Puedes iniciar el análisis!", "ok")

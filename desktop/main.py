@@ -92,6 +92,37 @@ def selftest() -> int:
     return 1 if failures else 0
 
 
+def resolve_models():
+    """HU-DS-13 (F4-D5): elige la carpeta de modelos y la deja fijada en ``paths``. Devuelve (carpeta, manifiesto,
+    pendientes): la de la instalación si tiene ``models.ok`` y está bien; si no, la de AppData."""
+    from desktop import model_store as ms
+    from desktop import paths
+    from desktop.logging_setup import log_event
+
+    if paths.migrate_legacy_model():
+        log_event("desktop.models.migrated", "modelo copiado desde la instalación anterior")
+    manifest = ms.load_manifest()
+    user_dir = paths.data_dir() / "models"
+    root = ms.resolve_models_dir(user_dir=user_dir)
+    pending = ms.quick_check(root, manifest)
+    if pending and root != user_dir:  # la de la instalación está dañada (y es de solo lectura): AppData
+        root = user_dir
+        pending = ms.quick_check(root, manifest)
+    paths.set_models_dir(root)
+    log_event("desktop.models.resolved", str(root), pending=[a.id for a in pending])
+    return root, manifest, pending
+
+
+def ensure_models() -> bool:
+    """E-02 paso 2: si falta algo o no coincide, la pantalla DESCARGANDO; ``False`` si la persona canceló o salió."""
+    root, manifest, pending = resolve_models()
+    if not pending:
+        return True
+    from desktop.ui.first_run import run_first_run
+
+    return run_first_run(root, manifest)
+
+
 def smoke(folder: str) -> int:
     """HU-DS-11: los modelos de la carpeta local y el pipeline, sin ventana. Lo usan el CI y la prueba en PC limpia."""
     import json
@@ -105,7 +136,8 @@ def smoke(folder: str) -> int:
     from wwm_pipeline.models import ModelRegistry
     from wwm_pipeline.pipeline import classify_file
 
-    report: dict = {"models_dir": str(paths.models_dir()), "files": {}}
+    root, _, pending = resolve_models()
+    report: dict = {"models_dir": str(root), "pending": [a.id for a in pending], "files": {}}
     t0 = time.monotonic()
     try:
         configure_threads()
@@ -164,6 +196,9 @@ def run(argv=None) -> int:
     if os.environ.get("WWM_GUI_LOCKED") == "1":
         return 0
     os.environ["WWM_GUI_LOCKED"] = "1"
+
+    if not ensure_models():  # HU-DS-13: Cancelar o Salir en la pantalla de descarga
+        return 0
 
     from desktop.ui.legacy_window import WildlifeDesktopApp
 
