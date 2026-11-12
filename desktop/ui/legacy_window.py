@@ -160,6 +160,8 @@ WARN_FG     = "#eab308"      # Amarillo
 # ===========================================================================
 class WildlifeDesktopApp(tk.Tk):
     def __init__(self):
+        self._closed = False
+        self._poll_id = None
         super().__init__()
 
         self.title(f"🦁  WWM Wildlife Detector  — v{__version__}")
@@ -485,15 +487,29 @@ class WildlifeDesktopApp(tk.Tk):
 
     def _poll_log_queue(self):
         """Consume mensajes pendientes del log y los eventos del análisis cada 100 ms."""
+        self._poll_id = None
         while not self.job_events.empty():
             self._on_job_event(self.job_events.get_nowait())
+            if self._closed:  # HU-DS-31: "¿Detener y salir?" cerró la ventana al llegar JobDone
+                return
         while not self.log_queue.empty():
             msg, tag = self.log_queue.get_nowait()
             self.log_text.config(state="normal")
             self.log_text.insert("end", msg + "\n", tag)
             self.log_text.see("end")
             self.log_text.config(state="disabled")
-        self.after(100, self._poll_log_queue)
+        self._poll_id = self.after(100, self._poll_log_queue)
+
+    def destroy(self):
+        """Cancela el sondeo pendiente: después de cerrar no se toca ningún widget (HU-DS-31)."""
+        self._closed = True
+        if getattr(self, "_poll_id", None) is not None:
+            try:
+                self.after_cancel(self._poll_id)
+            except tk.TclError:
+                pass
+            self._poll_id = None
+        super().destroy()
 
     def _clear_log(self):
         self.log_text.config(state="normal")

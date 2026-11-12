@@ -146,10 +146,16 @@ def window(monkeypatch):
 
     monkeypatch.setattr(lw.WildlifeDesktopApp, "_init_models_async", lambda self: None)
     monkeypatch.setattr(lw.messagebox, "showinfo", lambda *a: None)
-    try:
-        app = lw.WildlifeDesktopApp()
-    except tk.TclError as exc:  # pragma: no cover - sin pantalla
-        pytest.skip(f"sin pantalla: {exc}")
+    # Tcl en Windows a veces no encuentra init.tcl al crear muchas ventanas Tk() en el mismo proceso de pytest
+    # (la app real crea una sola): se reintenta antes de saltear.
+    for attempt in range(3):
+        try:
+            app = lw.WildlifeDesktopApp()
+            break
+        except tk.TclError as exc:  # pragma: no cover - sin pantalla o falla intermitente de Tcl
+            if attempt == 2:
+                pytest.skip(f"sin pantalla: {exc}")
+            time.sleep(0.2)
     app.withdraw()
     app.detector = SimpleNamespace(model=object(), models=SetModels())
     yield app, lw
@@ -190,8 +196,11 @@ def test_close_window_during_job(window, sd, tmp_path, monkeypatch, answer):
             app._on_close()  # la investigadora cierra la ventana a mitad del análisis
 
     app._on_job_event = on_event
+    callback_errors = []  # QA-09 real: cerrar dentro del sondeo dejaba un TclError en el log
+    app.report_callback_exception = lambda *exc: callback_errors.append(exc)
     app._on_start()
     pump(app, lambda: destroyed or any(isinstance(e, JobDone) for e in seen) and not app.is_running)
+    assert not callback_errors, callback_errors
 
     assert asked and "¿Detener y salir?" in asked[0]
     app._job_thread.join(timeout=30)
