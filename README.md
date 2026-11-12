@@ -297,3 +297,10 @@ Si necesitas distribuir la aplicación a usuarios que no saben usar la consola n
    ```
 3. Al finalizar, ve a la nueva carpeta `dist/WWF_Clasificador/`.
 4. El archivo **`WWF_Clasificador.exe`** es tu aplicación. Puedes comprimir toda la carpeta `WWF_Clasificador` en un `.zip` y compartirla.
+
+## Licencia
+
+- **El repositorio** se distribuye bajo la **GNU Affero General Public License v3.0** ([`LICENSE`](LICENSE)). La app de escritorio incluye `ultralytics` (AGPL-3.0) y `yolov5` (GPL-3.0), que llegan como dependencias de SpeciesNet. Quien reciba la app puede pedir este código y reusarlo bajo la misma licencia.
+- **El contrato con la web** está además bajo **MIT** ([`LICENSE-CONTRATO-MIT.txt`](LICENSE-CONTRATO-MIT.txt)), para que los repositorios del back y del front puedan copiarlo o ejecutarlo sin quedar sujetos a la AGPL. Son `wwm_pipeline/contract.py`, `package.py`, `enums.py`, `capture_parse.py`, `schemas/`, `tests/fixtures/` e `ia-fake`, y llevan `SPDX-License-Identifier: AGPL-3.0-only OR MIT`.
+- **La web** (back y front) habla con la IA solo por HTTP y no incluye este código, salvo el contrato MIT. Su licencia la decide el equipo de forma independiente.
+- **Los modelos** tienen sus propias licencias: MegaDetector, MIT; SpeciesNet, Apache-2.0.

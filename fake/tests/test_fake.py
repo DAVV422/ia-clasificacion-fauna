@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only OR MIT
 """HU-IA-22 · ia-fake — un test por criterio de aceptación."""
 
 import asyncio

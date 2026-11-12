@@ -1,0 +1,50 @@
+Licencia MIT para el contrato compartido con la web
+====================================================
+
+El repositorio ia-deteccion se distribuye bajo la GNU Affero General Public
+License v3.0 (archivo LICENSE), porque la app de escritorio incluye librerías
+con licencia AGPL-3.0 (ultralytics) y GPL-3.0 (yolov5).
+
+Los archivos de la lista siguiente forman el CONTRATO entre la IA y la web
+(back y front). No dependen de esas librerías y se ofrecen ADEMÁS bajo la
+licencia MIT, para que los repositorios de la web (que no son públicos) puedan
+copiarlos o ejecutarlos sin quedar sujetos a la AGPL. Quien los use elige la
+licencia que prefiera: AGPL-3.0 o MIT.
+
+  wwm_pipeline/contract.py
+  wwm_pipeline/package.py
+  wwm_pipeline/enums.py
+  wwm_pipeline/capture_parse.py
+  schemas/                 (todos los .json)
+  tests/fixtures/          (todo su contenido)
+  fake/                    (el servicio ia-fake)
+
+Cada uno de esos archivos .py lleva la línea
+  # SPDX-License-Identifier: AGPL-3.0-only OR MIT
+
+Un archivo nuevo entra en esta lista solo si no importa nada del resto de
+wwm_pipeline, de desktop/ ni de app/ (salvo los de esta misma lista).
+
+----------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) 2026 CETERIS404
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only OR MIT
 """Formato del paquete de sincronización escritorio → web (``.wwm.zip``, formato 1.x).
 
 Fuente de verdad: ``docs-interno/plan-implementacion/contratos/PAQUETE_ESCRITORIO.md``.

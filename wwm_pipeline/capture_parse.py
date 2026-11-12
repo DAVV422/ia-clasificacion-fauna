@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only OR MIT
 """Fecha y hora de captura a partir del nombre del archivo.
 
 Python puro (sin dependencias). Lo usan ``ia-fake`` y, en la fase 1, ``metadata.py`` (IA-20)

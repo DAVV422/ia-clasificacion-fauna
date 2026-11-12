@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only OR MIT
 """Enumeraciones compartidas por el contrato de la IA y el paquete de escritorio."""
 
 from enum import Enum

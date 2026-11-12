@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only OR MIT
 """ia-fake · IA simulada para desarrollo (HU-IA-22).
 
 Implementa ``POST /api/v1/detect``, ``GET /api/v1/health`` y ``GET /api/v1/catalog``

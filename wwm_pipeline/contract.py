@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only OR MIT
 """Contrato IA → Back (``POST /api/v1/detect``).
 
 Fuente de verdad: ``docs-interno/plan-implementacion/contratos/API_IA_BACK.md``.

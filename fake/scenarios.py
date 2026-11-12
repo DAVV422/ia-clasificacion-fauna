@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only OR MIT
 """Escenarios de ``ia-fake`` según el nombre del archivo recibido.
 
 El nombre se compara en minúsculas. El primer escenario que coincide gana.
