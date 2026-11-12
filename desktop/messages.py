@@ -15,6 +15,8 @@ MESSAGES = {
     "IA_INVALID_FORMAT": "Formato no compatible. Queda en la carpeta de origen.",
     "FILE_LOCKED": "El archivo está en uso por otro programa. Queda en la carpeta de origen.",
     "FILE_MOVE_VERIFY_FAILED": "No se pudo verificar la copia; el original no se movió.",
+    "DESKTOP_ACTION_FAILED": "No se pudo copiar o mover el archivo. Queda en la carpeta de origen.",
+    "IA_INTERNAL": "No se pudo analizar el archivo por un error inesperado. Queda en la carpeta de origen.",
     "OUT_OF_MEMORY": "El equipo se quedó sin memoria. Cierra otras aplicaciones y vuelve a intentar.",
     "EXPORT_INVALID": "No se pudo generar el paquete para la web.",
     "INTERNAL_ERROR": "Ocurrió un error inesperado (código de referencia {ref}).",

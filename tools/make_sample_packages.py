@@ -115,8 +115,8 @@ def base_lines() -> List[dict]:
         _line("CAM01_20260312_181502.mp4", "animal", taxa.DASYPROCTA_GENUS, 0.71, "dasyprocta", 4.27),
         _line("CAM01_20260313_120000.mp4", "blank", conf=0.97),
         _line("IMG_0042.JPG", "blank", conf=0.95, media="image"),
-        _line("CAM01_20260314_090000.mp4", "person", conf=0.88, frame="person", ts=1.0),
-        _line("IMG_0107.JPG", "vehicle", conf=0.92, frame="vehicle", media="image"),
+        _line("CAM01_20260314_090000.mp4", "person", conf=0.88),  # sin fotograma (F2-D2)
+        _line("IMG_0107.JPG", "vehicle", conf=0.92, media="image"),  # sin fotograma (F2-D9)
         _line("CAM01_20260315_101010.mp4", None, error="IA_DECODE_FAILED"),
     ]
 

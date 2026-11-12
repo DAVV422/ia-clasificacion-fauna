@@ -222,7 +222,8 @@ def test_order_level_animal_is_not_relocated(folder, tmp_path):
         apply_action=make_species_action(tmp_path / "salida", "move"),
     )
     done = [e for e in events if isinstance(e, FileDone)]
-    assert [d.status for d in done] == ["done", "done", "done"] and all(d.action is None for d in done)
+    assert [d.status for d in done] == ["done", "done", "done"]
+    assert all(d.action.type.value == "left_in_place" for d in done)
     assert (folder / "a_jaguar.mp4").exists() and not (tmp_path / "salida").exists()
 
 
@@ -245,3 +246,76 @@ def test_folder_job_has_no_tkinter():
     for py in (ROOT / "desktop" / "job").rglob("*.py"):
         text = py.read_text(encoding="utf-8")
         assert "import tkinter" not in text and "from tkinter" not in text, py.name
+
+
+# ---------------------------------------------------------------------------
+# HU-DS-02 · Qué queda en el origen, con F-SET-SINT
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("action", ["move", "copy"])
+def test_move_set_sint_leaves_expected_files_in_place(tmp_path, action):
+    """CA-3 y CA-4: cada fila de E-06; las líneas validan y suman lo mismo que el resumen."""
+    from tests.desktop.fixtures import F_SET_SINT, RELOCATED, STAYS_IN_PLACE, SetModels, write_f_set_sint
+    from wwm_pipeline.package import PackageLine, count_lines
+
+    src, dest = tmp_path / "SD", tmp_path / "clasificados"
+    write_f_set_sint(src)
+    summary, events = run_job(src, models=SetModels(), apply_action=make_species_action(dest, action), dest=dest)
+    done = {e.file_name: e for e in events if isinstance(e, FileDone)}
+
+    assert set(done) == set(F_SET_SINT) - {"raw_k.cr2"}  # el .cr2 ni siquiera se lista
+    remaining = {p.name for p in src.iterdir()}
+    expected_in_source = STAYS_IN_PLACE if action == "move" else set(F_SET_SINT)
+    assert remaining == expected_in_source
+    placed = {p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file()}
+    assert placed == {f"{folder}/{name}" for name, folder in RELOCATED.items()}
+
+    for name, e in done.items():
+        assert isinstance(e.line, PackageLine), name
+        PackageLine.model_validate(e.line.model_dump(mode="json"))
+        relocated = name in RELOCATED
+        assert (e.line.desktop_action.type.value != "left_in_place") is relocated, name
+        assert e.line.desktop_action.destination_folder == RELOCATED.get(name)
+    assert done["danado_j.mp4"].status == "error" and done["danado_j.mp4"].line.error_code == "IA_DECODE_FAILED"
+    assert done["orden_e.mp4"].line.taxonomy.rank.value == "order"
+    assert done["persona_h.mp4"].line.category.value == "person" and done["persona_h.mp4"].line.evidence is None
+    assert done["vehiculo_i.jpg"].line.category.value == "vehicle" and done["vehiculo_i.jpg"].line.evidence is None
+
+    counts = count_lines([e.line for e in done.values()])
+    assert (counts.animal, counts.blank, counts.person, counts.vehicle, counts.error) == (5, 2, 1, 1, 1)
+    assert counts.evidence_files == 5  # solo fauna (F2-D2, F2-D9)
+    assert (summary.relocated, summary.left_in_place, summary.errors) == (4, 6, 1)
+
+
+def test_destination_inside_source_is_rejected(folder, tmp_path):
+    """CA-5 (CB-90)."""
+    for dest in (folder, folder / "clasificados"):
+        summary, events = run_job(folder, apply_action=make_species_action(dest, "move"), dest=dest)
+        assert isinstance(events[0], JobError) and events[0].code == "SAME_OR_NESTED_FOLDER"
+        assert [type(e) for e in events] == [JobError, JobDone] and summary.processed == 0
+    assert (folder / "a_jaguar.mp4").exists() and not (folder / "clasificados").exists()
+    sibling = tmp_path / "entrada_clasificados"
+    summary, _ = run_job(folder, apply_action=make_species_action(sibling, "copy"), dest=sibling)
+    assert summary.processed == 3
+
+
+def test_error_without_readable_file_has_no_line(folder, monkeypatch):
+    """Si ni siquiera se puede leer el archivo para su sha256, la línea queda en None (solo el log)."""
+    import wwm_pipeline.metadata as metadata
+
+    def boom(path, *args, **kwargs):
+        raise PipelineError("IA_DECODE_FAILED", "no se pudo leer")
+
+    def unreadable(path):
+        raise PermissionError("bloqueado")
+
+    monkeypatch.setattr(metadata, "file_sha256", unreadable)
+    _, events = run_job(folder, classify=boom)
+    done = [e for e in events if isinstance(e, FileDone)]
+    assert all(d.status == "error" and d.line is None for d in done)
+
+
+def test_no_generic_folder():
+    """CA-6."""
+    for base in ("desktop", "wwm_pipeline"):
+        for py in (ROOT / base).rglob("*.py"):
+            assert "animal_desconocido" not in py.read_text(encoding="utf-8"), py

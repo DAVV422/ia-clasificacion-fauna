@@ -67,7 +67,7 @@ def test_early_animal_detected_by_folder_job(job_results):
     assert early.status == "done"
     assert early.result.decision.category == "animal"
     assert early.result.taxonomy.scientific_name == "Panthera onca"
-    assert early.action == "copiado a panthera_onca_jaguar"
+    assert early.action.type.value == "copy" and early.action.destination_folder == "panthera_onca_jaguar"
 
 
 def test_folder_job_matches_direct_pipeline(job_results, models):
@@ -77,6 +77,11 @@ def test_folder_job_matches_direct_pipeline(job_results, models):
 
     src, done = job_results
     assert all(d.status == "done" for d in done.values())
+    from wwm_pipeline.package import PackageLine
+
+    for d in done.values():  # HU-DS-02 CA-7: cada línea valida
+        PackageLine.model_validate(d.line.model_dump(mode="json"))
+        assert d.line.desktop_action.destination_folder == "panthera_onca_jaguar"
     for name in NAMES:
         direct = classify_file(src / name, name, PipelineConfig.desktop(), models)
         via_app = done[name].result

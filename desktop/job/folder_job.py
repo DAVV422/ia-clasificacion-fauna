@@ -19,12 +19,14 @@ from wwm_pipeline.errors import PipelineCancelled, PipelineError
 from wwm_pipeline.pipeline import classify_file
 
 from .events import FileDone, JobDone, JobError, JobStarted, JobSummary, Progress
+from .placement import is_same_or_inside
+from .record import LEFT_IN_PLACE, build_line, error_line
 
 logger = logging.getLogger("desktop.job")
 
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 PROGRESS_INTERVAL_S = 0.25  # como mucho un evento de progreso cada 250 ms por archivo
-ApplyAction = Callable[[object, Path], Optional[str]]
+ApplyAction = Callable[[object, Path], object]  # devuelve un wwm_pipeline.package.DesktopAction
 
 
 def list_media(source: Path) -> List[Path]:
@@ -55,6 +57,7 @@ class FolderJob:
         stop: threading.Event,
         apply_action: Optional[ApplyAction] = None,
         config: Optional[PipelineConfig] = None,
+        dest=None,
         tmp_context=None,
         classify=classify_file,
         clock=time.monotonic,
@@ -64,6 +67,7 @@ class FolderJob:
         self.events = events
         self.stop = stop
         self.apply_action = apply_action
+        self.dest = Path(dest) if dest is not None else None
         self.config = config or PipelineConfig.desktop()
         self.tmp_context = tmp_context
         self.classify = classify
@@ -78,6 +82,11 @@ class FolderJob:
 
     def run(self) -> JobSummary:
         t0 = self.clock()
+        if self.dest is not None and is_same_or_inside(self.dest, self.source):  # CB-90 (F2-D6)
+            self.events.put(JobError("SAME_OR_NESTED_FOLDER"))
+            summary = JobSummary(total=0, elapsed_ms=self._ms(t0))
+            self.events.put(JobDone(summary))
+            return summary
         try:
             files = list_media(self.source)
         except OSError as exc:
@@ -88,7 +97,7 @@ class FolderJob:
 
         total = len(files)
         self.events.put(JobStarted(total))
-        processed = with_animals = errors = 0
+        processed = with_animals = errors = relocated = 0
         stopped = False
         for i, path in enumerate(files, start=1):
             if self.stop.is_set():
@@ -104,6 +113,8 @@ class FolderJob:
                 errors += 1
             elif done.result is not None and done.result.decision.category == "animal":
                 with_animals += 1
+            if done.line is not None and done.line.desktop_action.destination_folder:
+                relocated += 1
             self.events.put(done)
         summary = JobSummary(
             total=total,
@@ -111,6 +122,8 @@ class FolderJob:
             with_animals=with_animals,
             without_animals=processed - with_animals - errors,
             errors=errors,
+            relocated=relocated,
+            left_in_place=processed - relocated,
             stopped=stopped or self.stop.is_set() and processed < total,
             elapsed_ms=self._ms(t0),
         )
@@ -136,27 +149,46 @@ class FolderJob:
         except PipelineCancelled:
             return FileDone(index, path.name, "cancelled", self._ms(t0))
         except PipelineError as err:
-            return FileDone(index, path.name, "error", self._ms(t0), error_code=err.code, error_message=err.message)
+            return self._error(index, path, t0, err.code, err.message)
         except Exception as exc:  # un archivo raro no detiene la carpeta
             logger.exception("Falló la clasificación de %s", path.name)
-            return FileDone(index, path.name, "error", self._ms(t0), error_code="IA_INTERNAL", error_message=str(exc))
+            return self._error(index, path, t0, "IA_INTERNAL", str(exc))
 
-        action = None
+        action: Any = LEFT_IN_PLACE
         if self.apply_action is not None:
             try:
                 action = self.apply_action(result, path)
             except OSError as exc:
                 logger.exception("No se pudo copiar o mover %s", path.name)
-                return FileDone(
-                    index,
-                    path.name,
-                    "error",
-                    self._ms(t0),
-                    result=result,
-                    error_code="DESKTOP_ACTION_FAILED",
-                    error_message=str(exc),
-                )
-        return FileDone(index, path.name, "done", self._ms(t0), result=result, action=action)
+                return self._error(index, path, t0, "DESKTOP_ACTION_FAILED", str(exc), result=result)
+        return FileDone(
+            index, path.name, "done", self._ms(t0), result=result, action=action, line=build_line(result, action)
+        )
+
+    def _error(self, index: int, path: Path, t0: float, code: str, message: str, result=None) -> FileDone:
+        """El archivo queda en el origen; la línea del registro lleva el código (HU-DS-02 CA-2)."""
+        line = None
+        try:
+            if result is not None and result.sha256:
+                sha, size = result.sha256, result.size_bytes
+            else:
+                from wwm_pipeline.metadata import file_sha256
+
+                sha, size = file_sha256(path)
+            line = error_line(path.name, sha, size, code)
+        except OSError:
+            logger.warning("No se pudo leer %s ni para su sha256; solo queda en el log", path.name)
+        return FileDone(
+            index,
+            path.name,
+            "error",
+            self._ms(t0),
+            result=result,
+            action=LEFT_IN_PLACE,
+            error_code=code,
+            error_message=message,
+            line=line,
+        )
 
     def _ms(self, t0: float) -> int:
         return int((self.clock() - t0) * 1000)

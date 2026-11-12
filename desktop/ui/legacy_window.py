@@ -51,6 +51,7 @@ from app.detector import WildlifeDetector
 from desktop.job.actions import make_species_action
 from desktop.job.events import FileDone, JobDone, JobError, JobStarted, Progress
 from desktop.job.folder_job import FolderJob, configure_threads
+from desktop.ui import texts
 
 import requests
 
@@ -552,6 +553,7 @@ class WildlifeDesktopApp(tk.Tk):
             self.job_events,
             self.stop_event,
             apply_action=make_species_action(output_path, action),
+            dest=output_path,
         )
         threading.Thread(target=job.run, daemon=True).start()
 
@@ -586,7 +588,7 @@ class WildlifeDesktopApp(tk.Tk):
             total = info.get("total") or 1
             self.progress_var.set(event.file_index / total * 100)
         elif isinstance(event, JobError):
-            self._log(f"❌  {event.message or event.code}", "error")
+            self._log(f"❌  {texts.job_error_text(event)}", "error")
         elif isinstance(event, JobDone):
             self._finish(event, info)
 
@@ -604,60 +606,29 @@ class WildlifeDesktopApp(tk.Tk):
     def _eta_text(info: dict, file_index: int) -> str:
         done = info.get("done_ms") or []
         elapsed = time.monotonic() - info.get("t0", time.monotonic())
-        text = f"  ·  {_fmt_duration(elapsed)} transcurrido"
+        text = f"  ·  {texts.format_duration(elapsed)} transcurrido"
         if done:
             remaining = (sum(done) / len(done)) / 1000 * (info.get("total", 0) - file_index + 1)
-            text += f", faltan ~{_fmt_duration(remaining)}"
+            text += f", faltan ~{texts.format_duration(remaining)}"
         return text
 
     def _log_file_done(self, event: FileDone, total: int):
-        self._log(f"🔍 [{event.file_index}/{total}]  {event.file_name}  ({event.elapsed_ms / 1000:.0f} s)", "dim")
-        if event.status == "error":
-            self._log(f"   ❌  Error ({event.error_code}): {event.error_message}", "error")
-            return
-        if event.status == "cancelled":
-            self._log("   ⏹  Detenido a mitad del archivo (no se copió ni movió)", "warn")
-            return
-        result = event.result
-        category = result.decision.category
-        if category == "animal":
-            tax = result.taxonomy
-            name = f"{tax.scientific_name} ({tax.common_name})" if tax and tax.common_name else (tax.scientific_name if tax else "?")
-            rank = "" if not tax or tax.rank.value == "species" else f" [{tax.rank.value}]"
-            review = "  ⚠️ revisar" if result.low_evidence else ""
-            self._log(f"   🐾  {name}{rank}  ({result.decision.confidence:.0%})  →  ✅ {event.action or ''}{review}", "ok")
-        elif category == "person":
-            self._log("   🧍  Persona (no se copia)", "dim")
-        elif category == "vehicle":
-            self._log("   🚙  Vehículo (no se copia)", "dim")
-        else:
-            self._log("   ⬜  Sin animales detectados", "dim")
+        for message, tag in texts.file_done_lines(event, total):
+            self._log(message, tag)
 
     def _finish(self, event: JobDone, info: dict):
         summary = event.summary
-        title = "⏹  ANÁLISIS DETENIDO" if summary.stopped else "✅  ANÁLISIS COMPLETADO"
-        self._log(f"\n{'─'*54}", "head")
-        self._log(f"  {title}", "head")
-        self._log(f"  Total en la carpeta : {summary.total}", "head")
-        self._log(f"  Analizados          : {summary.processed}", "head")
-        self._log(f"  Con animales        : {summary.with_animals}  🐾", "ok")
-        self._log(f"  Sin animales        : {summary.without_animals}", "dim")
-        self._log(f"  Errores             : {summary.errors}", "error" if summary.errors else "dim")
-        self._log(f"  Tiempo              : {_fmt_duration(summary.elapsed_ms / 1000)}", "dim")
-        self._log(f"{'─'*54}\n", "head")
+        for message, tag in texts.summary_lines(summary):
+            self._log(message, tag)
         self.prog_label.config(
-            text=f"{'⏹  Detenido' if summary.stopped else '✅  Listo'} — {summary.with_animals} archivos con animales "
-            f"de {summary.processed} analizados"
+            text=f"{'⏹  Detenido' if summary.stopped else '✅  Listo'} — {summary.relocated} clasificados, "
+            f"{summary.left_in_place} quedaron en el origen"
         )
         self._reset_ui()
         if summary.total:
             messagebox.showinfo(
                 "Análisis detenido" if summary.stopped else "Análisis completado",
-                f"Proceso {'detenido' if summary.stopped else 'terminado'}.\n\n"
-                f"  Archivos con animales : {summary.with_animals}\n"
-                f"  Sin animales          : {summary.without_animals}\n"
-                f"  Errores               : {summary.errors}\n\n"
-                f"Resultados guardados en:\n{info.get('output')}",
+                texts.summary_dialog_text(summary, info.get("output", "")),
             )
 
     def _reset_ui(self):
@@ -665,9 +636,3 @@ class WildlifeDesktopApp(tk.Tk):
         self.start_btn.config(state="normal", text="▶   Iniciar Análisis")
         self.stop_btn.config(state="disabled")
 
-
-def _fmt_duration(seconds: float) -> str:
-    seconds = int(max(0, seconds))
-    hours, rest = divmod(seconds, 3600)
-    minutes, secs = divmod(rest, 60)
-    return f"{hours} h {minutes:02d} min" if hours else f"{minutes} min {secs:02d} s"

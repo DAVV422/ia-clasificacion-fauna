@@ -29,10 +29,13 @@ class FileDone:
     file_name: str
     status: str  # "done" | "error" | "cancelled"
     elapsed_ms: int
-    result: Optional[Any] = None  # wwm_pipeline.pipeline.FileResult si status == "done"
-    action: Optional[str] = None  # lo que hizo apply_action (p. ej. "copiado a panthera_onca_jaguar"), o None
+    result: Optional[Any] = None  # wwm_pipeline.pipeline.FileResult si se pudo clasificar
+    action: Optional[Any] = None  # wwm_pipeline.package.DesktopAction (copy | move | left_in_place), o None
     error_code: Optional[str] = None
     error_message: Optional[str] = None
+    # HU-DS-02: la línea de clasificaciones.jsonl (wwm_pipeline.package.PackageLine), ya validada. La escribe
+    # HU-DS-14; None solo si ni siquiera se pudo leer el archivo para calcular su sha256.
+    line: Optional[Any] = None
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,8 @@ class JobSummary:
     with_animals: int = 0
     without_animals: int = 0
     errors: int = 0
+    relocated: int = 0  # copiados o movidos a una carpeta de especie, género o familia
+    left_in_place: int = 0  # quedaron en el origen (incluye los errores)
     stopped: bool = False
     elapsed_ms: int = 0
 

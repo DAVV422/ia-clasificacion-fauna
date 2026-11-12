@@ -12,7 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from .contract import SHA256_PATTERN, Alternative, BBox, ModelInfo, Taxonomy, _check_bbox
 from .enums import (
-    CATEGORIES_WITH_EVIDENCE,
     CaptureSource,
     Category,
     DesktopActionType,
@@ -25,6 +24,9 @@ SUPPORTED_MAJOR = 1
 JSONL_NAME = "classifications.jsonl"
 MANIFEST_NAME = "manifest.json"
 EVIDENCE_PATH_PATTERN = r"^evidence/[0-9a-f]{64}\.jpg$"
+# F2-D2 / F2-D9: el escritorio solo guarda fotogramas de fauna (privacidad). En el paquete, las líneas de
+# persona y vehículo van sin evidence. (En el contrato IA → back de la web no cambia: ver contract.py.)
+CATEGORIES_WITH_EVIDENCE_IN_PACKAGE = frozenset({Category.ANIMAL})
 
 
 class _Strict(BaseModel):
@@ -206,9 +208,11 @@ class PackageLine(_Lenient):
             raise ValueError("taxonomy es obligatorio si y solo si category=animal")
         if not is_animal and self.alternatives:
             raise ValueError("alternatives debe estar vacío si category no es animal")
-        needs_evidence = self.category in CATEGORIES_WITH_EVIDENCE
+        needs_evidence = self.category in CATEGORIES_WITH_EVIDENCE_IN_PACKAGE
         if needs_evidence != (self.evidence is not None):
-            raise ValueError("evidence es obligatorio si y solo si category ∈ {animal, person, vehicle}")
+            raise ValueError(
+                "evidence es obligatorio si y solo si category=animal (persona y vehículo van sin fotograma)"
+            )
         if self.evidence is not None and self.evidence.file != f"evidence/{self.file_sha256}.jpg":
             raise ValueError("evidence.file debe ser evidence/<file_sha256>.jpg")
         if self.desktop_action.type is not DesktopActionType.LEFT_IN_PLACE and not is_animal:

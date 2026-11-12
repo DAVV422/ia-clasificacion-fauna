@@ -50,7 +50,7 @@ def test_manifest_counts_match_lines():
         1,
         1,
         1,
-        9,
+        7,  # solo los de fauna (F2-D2, F2-D9)
     )
 
 
@@ -132,3 +132,25 @@ def test_unknown_minor_fields_are_ignored():
     manifest["format_version"] = "1.3"
     manifest["campo_nuevo"] = {"x": 1}
     assert Manifest.model_validate(manifest).major == 1
+
+
+@pytest.mark.parametrize("category", ["person", "vehicle"])
+def test_package_rejects_person_and_vehicle_evidence(category):
+    """F2-D2 / F2-D9: en el paquete solo la fauna lleva fotograma."""
+    import json
+
+    with zipfile.ZipFile(PKG / "sample_valid.wwm.zip") as zf:
+        lines = [json.loads(t) for t in zf.read("classifications.jsonl").decode().splitlines()]
+    line = next(item for item in lines if item["category"] == category)
+    assert line["evidence"] is None
+    PackageLine.model_validate(line)
+    line["evidence"] = {
+        "file": f"evidence/{line['file_sha256']}.jpg",
+        "frame_index": 0,
+        "timestamp_seconds": 0.0,
+        "bbox": [0.1, 0.1, 0.5, 0.5],
+        "width": 960,
+        "height": 540,
+    }
+    with pytest.raises(ValueError):
+        PackageLine.model_validate(line)

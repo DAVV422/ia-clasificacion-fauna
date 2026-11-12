@@ -45,12 +45,12 @@ from desktop.job.folder_job import FolderJob
 detector = WildlifeDetector(paths.megadetector_path())
 detector.load_model()
 events = queue.Queue()
-FolderJob(samples, detector.models, events, threading.Event(), apply_action=make_species_action(out, "copy")).run()
+FolderJob(samples, detector.models, events, threading.Event(), apply_action=make_species_action(out, "copy"), dest=out).run()
 folders = {}
 while not events.empty():
     e = events.get_nowait()
     if isinstance(e, FileDone):
-        folders[e.file_name] = e.error_code or e.action or e.result.decision.category
+        folders[e.file_name] = e.error_code or (e.action and e.action.destination_folder) or e.result.decision.category
 print(json.dumps({"folders": folders, "tmp": [p.name for p in paths.tmp_dir().iterdir()]}))
 """
 
