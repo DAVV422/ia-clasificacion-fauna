@@ -49,7 +49,9 @@ def job_results(models, tmp_path, monkeypatch):
     for name in NAMES:
         shutil.copy2(ESTACION_1 / name, src / name)
     events: queue.Queue = queue.Queue()
-    FolderJob(src, models, events, threading.Event(), apply_action=make_species_action(tmp_path / "salida", "copy")).run()
+    FolderJob(
+        src, models, events, threading.Event(), apply_action=make_species_action(tmp_path / "salida", "copy")
+    ).run()
     done = {}
     while not events.empty():
         e = events.get_nowait()

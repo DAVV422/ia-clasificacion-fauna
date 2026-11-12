@@ -1,43 +1,21 @@
-"""Qué se hace con cada archivo clasificado (HU-DS-01, regla **actual** del prototipo).
+"""Qué se hace con cada archivo clasificado.
 
-Copiar o mover a ``<destino>/<carpeta de especie>/`` los archivos con un **animal**; los demás no se
-tocan. La regla nueva (dónde va cada categoría, nombres de carpeta, fotograma) llega en la fase 2
-(HU-DS-02/03/10/30).
+Copiar o mover a ``<destino>/<carpeta de especie>/`` los archivos con un **animal** que llegó a especie,
+género o familia (nombre de carpeta: HU-DS-03). Los demás no se tocan. La decisión completa de qué queda
+en el origen y la línea del registro llegan con HU-DS-02; el fotograma junto al archivo, con HU-DS-10.
 """
 
 import shutil
 from pathlib import Path
 from typing import Callable, Optional
 
-UNKNOWN_FOLDER = "animal_desconocido"
+from wwm_pipeline.enums import Rank
 
-
-def species_folder_name(label) -> str:
-    """Nombre de carpeta del prototipo: "género;especie;común" → "genero_especie_comun" (HU-DS-03 lo revisa)."""
-    if not label:
-        return UNKNOWN_FOLDER
-    folder = label.replace(";", "_").replace(" ", "_")
-    folder = "".join(c for c in folder if c.isalnum() or c in "_-")
-    return folder or UNKNOWN_FOLDER
-
-
-def prototype_label(taxonomy) -> Optional[str]:
-    """La etiqueta corta del prototipo (``panthera;onca;jaguar``) desde la taxonomía nueva.
-
-    Es ``short_label(label_raw)``, la misma función que usaba el prototipo, así que los nombres de carpeta
-    no cambian. Usa el nombre común **del modelo**, no el del idioma configurado. Si el resultado subió
-    de nivel da ``panthera;;panthera species`` (carpeta ``panthera__panthera_species``), igual que el
-    prototipo con las etiquetas de género del modelo; HU-DS-03 lo cambia por ``panthera_sp``.
-    """
-    if taxonomy is None:
-        return None
-    from wwm_pipeline.classification import short_label
-
-    return short_label(taxonomy.label_raw)
+from .file_ops import RELOCATABLE_RANKS, safe_folder_name
 
 
 def unique_dest(dest: Path) -> Path:
-    """Si el destino ya existe, añade un sufijo numérico."""
+    """Si el destino ya existe, añade un sufijo numérico (HU-DS-10 lo cambia por " (2)")."""
     if not dest.exists():
         return dest
     stem, suffix = dest.stem, dest.suffix
@@ -56,9 +34,10 @@ def make_species_action(dest_root: Path, action: str) -> Callable[[object, Path]
     dest_root = Path(dest_root)
 
     def apply_action(result, path: Path) -> Optional[str]:
-        if result.decision.category != "animal":
+        taxonomy = result.taxonomy
+        if result.decision.category != "animal" or taxonomy is None or Rank(taxonomy.rank) not in RELOCATABLE_RANKS:
             return None
-        folder = species_folder_name(prototype_label(result.taxonomy))
+        folder = safe_folder_name(taxonomy)
         target_dir = dest_root / folder
         target_dir.mkdir(parents=True, exist_ok=True)
         dest = unique_dest(target_dir / path.name)

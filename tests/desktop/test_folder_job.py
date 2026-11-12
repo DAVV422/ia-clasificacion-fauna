@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from desktop import paths
-from desktop.job.actions import make_species_action, prototype_label, species_folder_name
+from desktop.job.actions import make_species_action
 from desktop.job.events import FileDone, JobDone, JobError, JobStarted, Progress
 from desktop.job.folder_job import FolderJob, configure_threads, list_media
 from tests.fakes import FakeModels
@@ -213,18 +213,17 @@ def test_stop_cancels_a_long_video(tmp_path):
 # ---------------------------------------------------------------------------
 # Regla de carpeta (la del prototipo, desde la taxonomía nueva)
 # ---------------------------------------------------------------------------
-def test_prototype_folder_from_taxonomy():
-    from tools._fixture_taxa import DASYPROCTA_GENUS, JAGUAR, TAPIR
-    from wwm_pipeline.enums import Rank
-    from wwm_pipeline.taxonomy import TaxonomyIndex
-
-    index = TaxonomyIndex([JAGUAR, TAPIR, DASYPROCTA_GENUS])
-    assert species_folder_name(prototype_label(index.to_taxonomy(JAGUAR, "es"))) == "panthera_onca_jaguar"
-    assert species_folder_name(prototype_label(index.to_taxonomy(TAPIR, "es"))) == "tapirus_terrestris_lowland_tapir"
-    genus = index.taxonomy_of(index.ancestor(index.lookup(JAGUAR), Rank.GENUS))
-    assert species_folder_name(prototype_label(genus)) == "panthera__panthera_species"
-    assert species_folder_name(prototype_label(index.to_taxonomy(DASYPROCTA_GENUS))) == "dasyprocta__dasyprocta_species"
-    assert species_folder_name(None) == "animal_desconocido"
+def test_order_level_animal_is_not_relocated(folder, tmp_path):
+    """Un animal que solo llegó a orden no tiene carpeta: queda en el origen (F2-D8; HU-DS-02 lo completa)."""
+    order = "837e12c2-f30c-4875-afeb-32d51938f139;aves;galliformes;;;;galliformes order"
+    _, events = run_job(
+        folder,
+        models=FakeModels(labels=[order], scores=[0.9]),
+        apply_action=make_species_action(tmp_path / "salida", "move"),
+    )
+    done = [e for e in events if isinstance(e, FileDone)]
+    assert [d.status for d in done] == ["done", "done", "done"] and all(d.action is None for d in done)
+    assert (folder / "a_jaguar.mp4").exists() and not (tmp_path / "salida").exists()
 
 
 def test_list_media_and_threads(folder):
