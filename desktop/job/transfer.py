@@ -198,6 +198,13 @@ def _undo(source: Path, target: Path, evidence: Optional[Path]) -> None:
         target.unlink(missing_ok=True)
 
 
+def _relative(path: Path, root: Path) -> str:
+    try:
+        return Path(path).relative_to(root).as_posix()
+    except ValueError:
+        return Path(path).name
+
+
 def save_file(
     *,
     dest_root: Path,
@@ -218,6 +225,12 @@ def save_file(
     ``volume``: ``True``/``False`` fuerza "mismo volumen" o "otro" (tests); ``None`` lo averigua.
     """
     st = os.stat(source)
+    extra = {
+        **(extra or {}),
+        "source_mtime_ns": st.st_mtime_ns,  # HU-DS-14: el bloque local de la línea
+        "destination_file": _relative(target, dest_root),
+        "evidence_file": _relative(evidence, dest_root) if evidence is not None and evidence_jpeg is not None else None,
+    }
     rename_only = move and (same_volume(source, target.parent) if volume is None else volume)
     write_journal(
         dest_root,
@@ -230,7 +243,7 @@ def save_file(
             target=str(target),
             evidence=str(evidence) if evidence is not None else None,
             line=line.model_dump(mode="json"),
-            extra=extra or {},
+            extra=extra,
         ),
     )
     fault("C1")
@@ -277,7 +290,7 @@ def save_file(
     if move and not rename_only and not _delete_original(source):
         line, warning = _as_copy(line), "SOURCE_NOT_DELETED"
     fault("C5")
-    return Saved(dest_root, line, target, evidence, warning, extra or {}, fault)
+    return Saved(dest_root, line, target, evidence, warning, extra, fault)
 
 
 # ---------------------------------------------------------------------------

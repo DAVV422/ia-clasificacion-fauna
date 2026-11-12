@@ -1,6 +1,8 @@
 """Textos de la ventana para cada evento del análisis (E-06, E-09). Sin ``tkinter``: se prueban solos."""
 
-from typing import List, Tuple
+import os
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 from desktop.messages import message_for
 from wwm_pipeline.evidence import mmss
@@ -107,3 +109,36 @@ def summary_dialog_text(summary, output_dir: str) -> str:
 
 def job_error_text(event) -> str:
     return message_for(event.code, ref=event.code) if event.code else (event.message or "")
+
+
+def _same_folder(a: Optional[str], b: str) -> bool:
+    if not a:
+        return True
+    try:
+        return os.path.normcase(str(Path(a).resolve())) == os.path.normcase(str(Path(b).resolve()))
+    except OSError:
+        return os.path.normcase(a) == os.path.normcase(b)
+
+
+def resume_prompt(info, source: str, remaining: int) -> Tuple[str, str]:
+    """El diálogo de E-08 (HU-DS-14) para ``messagebox.askyesnocancel``: Sí = Continuar, No = Empezar de nuevo."""
+    when = f", {info.last_at:%d/%m/%Y %H:%M}" if info.last_at else ""
+    noun = "archivo analizado" if info.done == 1 else "archivos analizados"
+    lines = [f"Esta carpeta de destino ya tiene resultados de un análisis anterior ({info.done} {noun}{when})."]
+    if not _same_folder(info.source, source):  # F3-D6: se avisa y se deja continuar
+        lines.append(f"Este registro es de la carpeta {info.source}.")
+    if info.errors:
+        lines.append(
+            "1 con error se volverá a intentar."
+            if info.errors == 1
+            else f"{info.errors} con error se volverán a intentar."
+        )
+    pending = "el 1 que falta" if remaining == 1 else f"los {remaining} que faltan"
+    lines += [
+        "",
+        "¿Qué quieres hacer?",
+        f"   Sí  →  Continuar (analizar solo {pending})",
+        "   No  →  Empezar de nuevo (analizar todo; el registro anterior se guarda como respaldo)",
+        "   Cancelar  →  no hacer nada",
+    ]
+    return "Análisis anterior encontrado", "\n".join(lines)

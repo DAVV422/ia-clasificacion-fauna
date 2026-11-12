@@ -50,7 +50,8 @@ from app.config import MEGADETECTOR_URL
 from app.detector import WildlifeDetector
 from desktop.job.actions import make_species_action
 from desktop.job.events import FileDone, JobDone, JobError, JobStarted, Progress
-from desktop.job.folder_job import FolderJob, configure_threads
+from desktop.job.folder_job import FolderJob, configure_threads, list_media
+from desktop.job.job_log import JobLog
 from desktop.ui import texts
 
 import requests
@@ -538,14 +539,29 @@ class WildlifeDesktopApp(tk.Tk):
             messagebox.showwarning("Modelos", "Los modelos aún no han terminado de cargar.\nEspera a que el indicador diga '⬤  Listo'.")
             return
 
+        output_path = Path(output_dir)
+        log = JobLog(output_path)
+        try:
+            if log.exists():  # HU-DS-14 · E-08: continuar o empezar de nuevo
+                remaining = log.remaining_estimate(list_media(Path(input_dir)))
+                title, message = texts.resume_prompt(log.info(), input_dir, remaining)
+                choice = messagebox.askyesnocancel(title, message)
+                if choice is None:
+                    return
+                if choice is False:
+                    log.backup()
+            output_path.mkdir(parents=True, exist_ok=True)
+            log.start(input_dir, action)
+        except OSError as exc:
+            messagebox.showerror("Error", f"{texts.message_for('DESTINATION_NOT_WRITABLE')}\n\n{exc}")
+            return
+        self._job_log = log
+
         self.is_running = True
         self.stop_event = threading.Event()
         self.start_btn.config(state="disabled", text="⏳  Procesando…")
         self.stop_btn.config(state="normal")
         self.progress_var.set(0)
-
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
         self._job_info = {"input": input_dir, "output": output_dir, "action": action, "total": 0, "t0": time.monotonic(), "done_ms": []}
         job = FolderJob(
             input_dir,
@@ -554,6 +570,9 @@ class WildlifeDesktopApp(tk.Tk):
             self.stop_event,
             apply_action=make_species_action(output_path, action),
             dest=output_path,
+            record=log.append,
+            has_line=log.has_line,
+            skip=log.is_processed,
         )
         threading.Thread(target=job.run, daemon=True).start()
 
@@ -569,6 +588,9 @@ class WildlifeDesktopApp(tk.Tk):
         info = getattr(self, "_job_info", None) or {}
         if isinstance(event, JobStarted):
             info["total"] = event.total
+            if not event.total and event.already_done:
+                self._log(f"✅  Los {event.already_done} archivos de la carpeta ya estaban analizados.", "ok")
+                return
             if not event.total:
                 self._log("⚠️  No se encontraron archivos de imagen o video en la carpeta.", "warn")
                 return
@@ -578,6 +600,8 @@ class WildlifeDesktopApp(tk.Tk):
             self._log(f"  📂 Salida  : {info.get('output')}", "head")
             self._log(f"  ⚙️  Acción  : {action_label}", "head")
             self._log(f"  📊 Archivos: {event.total}", "head")
+            if event.already_done:
+                self._log(f"  ⏭️  Ya analizados (se saltan): {event.already_done}", "head")
             self._log(f"  🔬 Modo    : precisión (video completo + votación)", "head")
             self._log(f"{'─'*54}\n", "head")
         elif isinstance(event, Progress):
@@ -618,6 +642,10 @@ class WildlifeDesktopApp(tk.Tk):
 
     def _finish(self, event: JobDone, info: dict):
         summary = event.summary
+        log = getattr(self, "_job_log", None)
+        if log is not None:  # JobDone es el último evento: el hilo ya no escribe
+            log.close()
+            self._job_log = None
         for message, tag in texts.summary_lines(summary):
             self._log(message, tag)
         self.prog_label.config(

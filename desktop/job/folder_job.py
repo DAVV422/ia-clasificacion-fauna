@@ -80,6 +80,7 @@ class FolderJob:
         self.clock = clock
         self.record = record  # HU-DS-14 le pasa JobLog.append; sin él, las líneas solo van en FileDone
         self.has_line = has_line
+        self._local: Dict[str, Any] = {}
         self.skip = skip  # HU-DS-14: los ya procesados ("Continuar"); se evalúa después de reconcile()
 
     def _tmp(self):
@@ -104,10 +105,13 @@ class FolderJob:
                 summary = JobSummary(total=0, elapsed_ms=self._ms(t0))
                 self.events.put(JobDone(summary))
                 return summary
+        already_done = 0
         try:
             files = list_media(self.source)
             if self.skip is not None:
-                files = [p for p in files if not self.skip(p)]
+                listed = len(files)
+                files = [p for p in files if not self._skipped(p)]
+                already_done = listed - len(files)
         except OSError as exc:
             self.events.put(JobError("DESKTOP_SOURCE_UNREADABLE", str(exc)))
             summary = JobSummary(total=0, elapsed_ms=self._ms(t0))
@@ -115,7 +119,7 @@ class FolderJob:
             return summary
 
         total = len(files)
-        self.events.put(JobStarted(total))
+        self.events.put(JobStarted(total, already_done))
         processed = with_animals = errors = relocated = not_deleted = 0
         stopped = False
         for i, path in enumerate(files, start=1):
@@ -154,8 +158,18 @@ class FolderJob:
         self.events.put(JobDone(summary))
         return summary
 
+    def _skipped(self, path: Path) -> bool:
+        try:
+            return bool(self.skip and self.skip(path))
+        except OSError:  # no se pudo leer: que lo intente el análisis y lo registre con su error
+            return False
+
     def _process(self, index: int, path: Path) -> FileDone:
         t0 = self.clock()
+        try:
+            self._local = {"source_mtime_ns": os.stat(path).st_mtime_ns}  # HU-DS-14: antes de clasificar
+        except OSError:
+            self._local = {}
         last: Dict[str, Any] = {"t": None, "stage": None}
 
         def on_progress(stage: str, done: int, total: int) -> None:
@@ -200,7 +214,7 @@ class FolderJob:
             outcome.commit()
         else:
             line = build_line(result, outcome)
-            self._record(line, {})
+            self._record(line, self._local)
         return FileDone(
             index,
             path.name,
@@ -229,7 +243,7 @@ class FolderJob:
             line = error_line(path.name, sha, size, code)
         except OSError:
             logger.warning("No se pudo leer %s ni para su sha256; solo queda en el log", path.name)
-        self._record(line, {})
+        self._record(line, self._local)
         return FileDone(
             index,
             path.name,

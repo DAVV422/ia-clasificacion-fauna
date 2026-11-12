@@ -11,7 +11,8 @@ from typing import Any, Optional
 
 @dataclass(frozen=True)
 class JobStarted:
-    total: int
+    total: int  # los que se van a analizar en esta corrida
+    already_done: int = 0  # HU-DS-14: los que se saltan porque ya están en el registro ("Continuar")
 
 
 @dataclass(frozen=True)
