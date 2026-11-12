@@ -18,6 +18,7 @@ from wwm_pipeline.config import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, PipelineConf
 from wwm_pipeline.errors import PipelineCancelled, PipelineError
 from wwm_pipeline.pipeline import classify_file
 
+from .actions import ActionError
 from .events import FileDone, JobDone, JobError, JobStarted, JobSummary, Progress
 from .placement import is_same_or_inside
 from .record import LEFT_IN_PLACE, build_line, error_line
@@ -158,6 +159,9 @@ class FolderJob:
         if self.apply_action is not None:
             try:
                 action = self.apply_action(result, path)
+            except ActionError as exc:
+                logger.exception("No se pudo reubicar %s (%s)", path.name, exc.code)
+                return self._error(index, path, t0, exc.code, exc.message, result=result)
             except OSError as exc:
                 logger.exception("No se pudo copiar o mover %s", path.name)
                 return self._error(index, path, t0, "DESKTOP_ACTION_FAILED", str(exc), result=result)

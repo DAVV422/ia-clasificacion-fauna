@@ -112,7 +112,7 @@ def test_bbox_normalized_and_drawn():
     assert xyxy_from_prototype([-0.01, 0.0, 1.2, 1.0]) == (0.0, 0.0, 1.0, 1.0)
     frame = np.full((540, 960, 3), 60, np.uint8)
     bbox = (0.25, 0.2, 0.75, 0.8)
-    jpeg, w, h = render_evidence(frame, bbox)
+    jpeg, w, h, _ = render_evidence(frame, bbox)
     img = decode(jpeg).astype(int)
     x1, y1 = round(0.25 * (w - 1)), round(0.2 * (h - 1))
     x2 = round(0.75 * (w - 1))
@@ -147,7 +147,7 @@ def test_label_strip_desktop_only(tmp_path):
 
 def test_strip_keeps_max_size_on_portrait_video():
     frame = np.full((960, 540, 3), 90, np.uint8)
-    jpeg, w, h = render_evidence(frame, (0.1, 0.1, 0.5, 0.5), label="Tapirus terrestris (anta) · 88 % · 00:12")
+    jpeg, w, h, _ = render_evidence(frame, (0.1, 0.1, 0.5, 0.5), label="Tapirus terrestris (anta) · 88 % · 00:12")
     assert max(w, h) <= 960 and decode(jpeg).shape[:2] == (h, w)
 
 

@@ -91,7 +91,12 @@ def test_folder_job_events_in_order(folder, tmp_path):
     assert (summary.total, summary.processed, summary.with_animals, summary.without_animals) == (3, 3, 2, 1)
     assert not summary.stopped
     copied = sorted(p.relative_to(tmp_path / "salida").as_posix() for p in (tmp_path / "salida").rglob("*.*"))
-    assert copied == ["panthera_onca_jaguar/a_jaguar.mp4", "panthera_onca_jaguar/b_foto.JPG"]
+    assert copied == [
+        "panthera_onca_jaguar/a_jaguar.mp4",
+        "panthera_onca_jaguar/a_jaguar_fotograma.jpg",
+        "panthera_onca_jaguar/b_foto.JPG",
+        "panthera_onca_jaguar/b_foto_fotograma.jpg",
+    ]
     assert (folder / "a_jaguar.mp4").exists()  # copiar no borra el original
     assert list(paths.tmp_dir().iterdir()) == []
 
@@ -267,7 +272,9 @@ def test_move_set_sint_leaves_expected_files_in_place(tmp_path, action):
     expected_in_source = STAYS_IN_PLACE if action == "move" else set(F_SET_SINT)
     assert remaining == expected_in_source
     placed = {p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file()}
-    assert placed == {f"{folder}/{name}" for name, folder in RELOCATED.items()}
+    expected = {f"{folder}/{name}" for name, folder in RELOCATED.items()}
+    expected |= {f"{folder}/{Path(name).stem}_fotograma.jpg" for name, folder in RELOCATED.items()}
+    assert placed == expected  # cada archivo con su fotograma; ninguno de persona ni vehículo (F2-D2, F2-D9)
 
     for name, e in done.items():
         assert isinstance(e.line, PackageLine), name

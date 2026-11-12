@@ -11,7 +11,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
+from typing import NamedTuple, Optional, Sequence, Tuple
 
 from .contract import EVIDENCE_MAX_PX, Evidence
 
@@ -63,8 +63,14 @@ class EvidenceImage:
     bbox: BBox  # [x1, y1, x2, y2] normalizado respecto del frame original
     detection_confidence: float
     jpeg: bytes
-    width: int
-    height: int
+    width: int  # del JPEG
+    height: int  # del JPEG (con la franja de escritorio, si la hay)
+    frame_height: Optional[int] = None  # alto del fotograma sin la franja; None = igual a height
+
+    @property
+    def clean_height(self) -> int:
+        """El alto del fotograma limpio (sin franja): el que va al paquete web (F2-D1)."""
+        return self.frame_height or self.height
 
     def to_contract(self) -> Evidence:
         return Evidence(
@@ -120,12 +126,33 @@ def _font(size: int):
         return ImageFont.load_default()
 
 
-def _append_strip(img_bgr, text: str):
+def fit_tail(text: str, tail: str, measure, max_width: float, sep: str = " · ") -> str:
+    """``text · tail`` acortando ``tail`` por el medio con ``…`` hasta que entre en ``max_width``.
+
+    ``text`` (nombre, confianza y ``mm:ss``) nunca se corta. ``measure(s)`` devuelve el ancho en píxeles.
+    """
+    full = f"{text}{sep}{tail}"
+    if measure(full) <= max_width:
+        return full
+    stem, dot, ext = tail.rpartition(".")
+    keep_end = f"{dot}{ext}" if dot and len(ext) <= 5 else ""
+    body = stem if keep_end else tail
+    for cut in range(1, len(body) + 1):
+        left = body[: (len(body) - cut + 1) // 2]
+        right = body[len(left) + cut :]
+        candidate = f"{text}{sep}{left}…{right}{keep_end}"
+        if measure(candidate) <= max_width:
+            return candidate
+    return text
+
+
+def _append_strip(img_bgr, text: str, tail: Optional[str] = None):
     """Agrega **debajo** del fotograma una franja negra con el texto en blanco.
 
     Va debajo y no encima porque las cámaras trampa imprimen al pie su propio sello (fecha, hora,
     temperatura, id de cámara), que es información valiosa y no se debe tapar. El texto se dibuja con
-    Pillow para que se vean las tildes.
+    Pillow para que se vean las tildes. ``tail`` (el nombre del archivo, HU-DS-10) se acorta por el medio
+    si no entra.
     """
     import cv2
     import numpy as np
@@ -136,6 +163,8 @@ def _append_strip(img_bgr, text: str):
     font = _font(size)
     pad = max(4, size // 3)
     probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    if tail:
+        text = fit_tail(text, tail, lambda s: probe.textlength(s, font=font), w - 2 * pad)
     _left, top, _right, bottom = probe.textbbox((0, 0), text, font=font)
     strip_h = (bottom - top) + 2 * pad
     canvas = Image.new("RGB", (w, h + strip_h), (0, 0, 0))
@@ -144,18 +173,27 @@ def _append_strip(img_bgr, text: str):
     return cv2.cvtColor(np.asarray(canvas), cv2.COLOR_RGB2BGR)
 
 
+class Rendered(NamedTuple):
+    jpeg: bytes
+    width: int
+    height: int  # del JPEG completo
+    frame_height: int  # de la parte de arriba (el fotograma, sin la franja)
+
+
 def render_evidence(
     frame_bgr,
     bbox: BBox,
     *,
     label: Optional[str] = None,
+    label_tail: Optional[str] = None,
     max_px: int = EVIDENCE_MAX_PX,
     quality: int = 80,
-) -> Tuple[bytes, int, int]:
-    """Redimensiona (sin agrandar), dibuja el recuadro y, si hay ``label``, la franja; devuelve ``(jpeg, ancho, alto)``.
+) -> Rendered:
+    """Redimensiona (sin agrandar), dibuja el recuadro y, si hay ``label``, la franja (con ``label_tail`` al final).
 
     Con franja, el JPEG es más alto que el fotograma: ``bbox`` sigue siendo relativo al **fotograma**
-    (la parte de arriba), como pide el contrato. La web no lleva franja. ``cv2.imencode`` no escribe EXIF.
+    (la parte de arriba, de ``frame_height`` filas), como pide el contrato. La web no lleva franja.
+    ``cv2.imencode`` no escribe EXIF.
     """
     import cv2
 
@@ -175,14 +213,30 @@ def render_evidence(
     thickness = max(2, round(max(h, w) / 320))
     cv2.rectangle(img, p1, p2, OUTLINE_BGR, thickness + 2)
     cv2.rectangle(img, p1, p2, BOX_COLOR_BGR, thickness)
+    frame_h = h
     if label:
-        img = _append_strip(img, label)
+        img = _append_strip(img, label, label_tail)
         h, w = img.shape[:2]
         if max(h, w) > max_px:  # un video vertical con franja podría pasarse del máximo
             scale = max_px / max(h, w)
             img = cv2.resize(img, (max(1, round(w * scale)), max(1, round(h * scale))), interpolation=cv2.INTER_AREA)
+            frame_h = round(frame_h * scale)
             h, w = img.shape[:2]
     ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, int(quality)])
     if not ok:  # pragma: no cover - imencode solo falla con imágenes vacías
         raise ValueError("No se pudo codificar el fotograma de evidencia")
-    return buf.tobytes(), w, h
+    return Rendered(buf.tobytes(), w, h, frame_h)
+
+
+def crop_strip(jpeg: bytes, frame_height: int, quality: int = 80) -> bytes:
+    """El fotograma limpio para el paquete web: las primeras ``frame_height`` filas, sin la franja (F2-D1)."""
+    import cv2
+    import numpy as np
+
+    img = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("El fotograma no es un JPEG válido")
+    ok, buf = cv2.imencode(".jpg", img[:frame_height], [cv2.IMWRITE_JPEG_QUALITY, int(quality)])
+    if not ok:  # pragma: no cover
+        raise ValueError("No se pudo codificar el fotograma recortado")
+    return buf.tobytes()

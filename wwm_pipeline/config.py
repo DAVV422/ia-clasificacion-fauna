@@ -52,6 +52,7 @@ class PipelineConfig:
     # --- fotograma de evidencia (HU-IA-15); solo con sampling="dense" ---
     evidence: bool = False
     evidence_label: bool = False  # franja "Panthera onca (jaguar) · 94 % · 00:07" (solo escritorio)
+    evidence_label_file_name: bool = False  # la franja termina en "· NOMBRE.mp4" (HU-DS-10, escritorio)
     evidence_max_px: int = 960
     jpeg_quality: int = 80
 
@@ -121,5 +122,6 @@ class PipelineConfig:
             max_video_seconds=None,
             evidence=True,
             evidence_label=True,
+            evidence_label_file_name=True,
             jpeg_quality=85,
         )

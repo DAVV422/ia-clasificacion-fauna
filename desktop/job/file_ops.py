@@ -1,12 +1,16 @@
 """Operaciones de archivos del escritorio.
 
 - HU-DS-03: ``safe_folder_name`` (nombre de la carpeta por especie, válido en Windows).
-- HU-DS-10 agrega ``unique_pair``; la fase 3 (HU-DS-30) ``copy_verified`` y ``move_verified``.
+- HU-DS-10: ``unique_pair``, ``evidence_name`` y ``write_atomic`` (el fotograma junto al archivo).
+- La fase 3 (HU-DS-30) agrega ``copy_verified`` y ``move_verified``.
 """
 
+import os
 import re
+import time
 import unicodedata
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Tuple
 
 from wwm_pipeline.enums import Rank
 
@@ -58,3 +62,50 @@ def safe_folder_name(taxonomy) -> str:
     if not name:
         raise ValueError(f"no se pudo armar un nombre de carpeta para {taxonomy.scientific_name!r}")
     return name
+
+
+# ---------------------------------------------------------------------------
+# HU-DS-10 · El archivo y su fotograma, con nombres que nunca se pisan
+# ---------------------------------------------------------------------------
+EVIDENCE_SUFFIX = "_fotograma.jpg"
+REPLACE_RETRIES = 3
+REPLACE_WAIT_S = 0.2
+
+
+def evidence_name(file_name: str) -> str:
+    """``CAM01.mp4`` → ``CAM01_fotograma.jpg``."""
+    return f"{Path(file_name).stem}{EVIDENCE_SUFFIX}"
+
+
+def unique_pair(folder: Path, file_name: str) -> Tuple[Path, Path]:
+    """El primer par libre: ``NOMBRE.ext`` + ``NOMBRE_fotograma.jpg``, luego ``NOMBRE (2).ext`` + … (CB-91).
+
+    Los dos nombres tienen que estar libres a la vez: nunca se sobrescribe ni se mezcla el fotograma de otro archivo.
+    """
+    folder = Path(folder)
+    stem, suffix = Path(file_name).stem, Path(file_name).suffix
+    n = 1
+    while True:
+        base = stem if n == 1 else f"{stem} ({n})"
+        target, evidence = folder / f"{base}{suffix}", folder / f"{base}{EVIDENCE_SUFFIX}"
+        if not target.exists() and not evidence.exists():
+            return target, evidence
+        n += 1
+
+
+def write_atomic(path: Path, data: bytes) -> None:
+    """Escribe a ``<path>.part`` y lo renombra; reintenta el renombre si un antivirus lo bloquea un instante."""
+    part = path.with_name(path.name + ".part")
+    try:
+        part.write_bytes(data)
+        for attempt in range(REPLACE_RETRIES):
+            try:
+                os.replace(part, path)
+                return
+            except PermissionError:
+                if attempt == REPLACE_RETRIES - 1:
+                    raise
+                time.sleep(REPLACE_WAIT_S)
+    finally:
+        if part.exists():
+            part.unlink(missing_ok=True)

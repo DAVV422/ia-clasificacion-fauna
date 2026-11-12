@@ -283,7 +283,7 @@ def _classify_video_dense(
         planned_by_index = {p.index: p for p in sampled.frames}
         image = next((img for _, img in iter_selected(str(path), [planned_by_index[target.frame_index]])), None)
         if image is not None:
-            evidence = _build_evidence(image, target, result_vote, config, is_video=True)
+            evidence = _build_evidence(image, target, result_vote, config, is_video=True, file_name=file_name)
     fps = sampled.fps
     return FileResult(
         file_name,
@@ -402,7 +402,9 @@ def _classify_image_dense(image, file_name: str, config: PipelineConfig, models:
         sampling=config.sampling_label,
         frames_classified=len(votes),
         vote=result_vote,
-        evidence=_build_evidence(image, target, result_vote, config, is_video=False) if target else None,
+        evidence=_build_evidence(image, target, result_vote, config, is_video=False, file_name=file_name)
+        if target
+        else None,
     )
 
 
@@ -455,7 +457,14 @@ def _evidence_target(result_vote: VoteResult, frames: List[FrameResult], votes: 
     return _EvidenceTarget(v.frame_index, v.timestamp_seconds, box, v.det_conf)
 
 
-def _build_evidence(image, target: _EvidenceTarget, result_vote: VoteResult, config: PipelineConfig, is_video: bool):
+def _build_evidence(
+    image,
+    target: _EvidenceTarget,
+    result_vote: VoteResult,
+    config: PipelineConfig,
+    is_video: bool,
+    file_name: Optional[str] = None,
+):
     bbox = xyxy_from_prototype(target.box)
     label = None
     if config.evidence_label:
@@ -468,17 +477,23 @@ def _build_evidence(image, target: _EvidenceTarget, result_vote: VoteResult, con
             tax.common_name if tax else None,
             config.common_name_lang,
         )
-    jpeg, width, height = render_evidence(
-        image, bbox, label=label, max_px=config.evidence_max_px, quality=config.jpeg_quality
+    rendered = render_evidence(
+        image,
+        bbox,
+        label=label,
+        label_tail=file_name if (label and config.evidence_label_file_name) else None,
+        max_px=config.evidence_max_px,
+        quality=config.jpeg_quality,
     )
     return EvidenceImage(
         frame_index=target.frame_index if is_video else 0,
         timestamp_seconds=round(target.timestamp_seconds, 2) if is_video else 0.0,
         bbox=bbox,
         detection_confidence=round(target.detection_confidence, 4),
-        jpeg=jpeg,
-        width=width,
-        height=height,
+        jpeg=rendered.jpeg,
+        width=rendered.width,
+        height=rendered.height,
+        frame_height=rendered.frame_height,
     )
 
 

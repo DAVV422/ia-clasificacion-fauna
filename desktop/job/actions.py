@@ -1,12 +1,16 @@
 """Qué se hace en disco con cada archivo clasificado (E-06).
 
-- Animal con especie, género o familia → copiar o mover a ``<destino>/<carpeta>/`` (carpeta: HU-DS-03).
-- Todo lo demás → **queda en el origen** (HU-DS-02).
+- Animal con especie, género o familia → ``<destino>/<carpeta>/NOMBRE.ext`` + ``NOMBRE_fotograma.jpg`` al lado
+  (carpeta: HU-DS-03; fotograma: HU-DS-10).
+- Todo lo demás → **queda en el origen** (HU-DS-02), sin fotograma en disco (F2-D2, F2-D9).
 
-``apply_action(result, path)`` devuelve el ``DesktopAction`` del registro (PKG §3). El fotograma junto al
-archivo llega con HU-DS-10 y el mover verificado con HU-DS-30.
+Orden (F2-D3): primero el fotograma y después el archivo. Si falla el fotograma, el archivo no se toca
+(``EVIDENCE_WRITE_FAILED``); si falla la copia o el movimiento, se borra el fotograma recién escrito.
+``apply_action(result, path)`` devuelve el ``DesktopAction`` del registro (PKG §3). El mover verificado
+(con ``.part`` y ``sha256``) llega con HU-DS-30.
 """
 
+import logging
 import shutil
 from pathlib import Path
 from typing import Callable
@@ -14,24 +18,21 @@ from typing import Callable
 from wwm_pipeline.enums import DesktopActionType
 from wwm_pipeline.package import DesktopAction
 
-from .file_ops import safe_folder_name
+from .file_ops import safe_folder_name, unique_pair, write_atomic
 from .placement import should_relocate
 from .record import LEFT_IN_PLACE
 
+logger = logging.getLogger("desktop.job")
 ApplyAction = Callable[[object, Path], DesktopAction]
 
 
-def unique_dest(dest: Path) -> Path:
-    """Si el destino ya existe, añade un sufijo numérico (HU-DS-10 lo cambia por " (2)")."""
-    if not dest.exists():
-        return dest
-    stem, suffix = dest.stem, dest.suffix
-    counter = 1
-    while True:
-        candidate = dest.parent / f"{stem}_{counter}{suffix}"
-        if not candidate.exists():
-            return candidate
-        counter += 1
+class ActionError(Exception):
+    """Una falla al reubicar un archivo, con su código de E-11. El original siempre queda en el origen."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 
 def make_species_action(dest_root: Path, action: str) -> ApplyAction:
@@ -46,12 +47,31 @@ def make_species_action(dest_root: Path, action: str) -> ApplyAction:
             return LEFT_IN_PLACE
         folder = safe_folder_name(result.taxonomy)
         target_dir = dest_root / folder
-        target_dir.mkdir(parents=True, exist_ok=True)
-        dest = unique_dest(target_dir / path.name)
-        if kind is DesktopActionType.COPY:
-            shutil.copy2(str(path), str(dest))
-        else:
-            shutil.move(str(path), str(dest))
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise ActionError("DESTINATION_NOT_WRITABLE", str(exc)) from exc
+        target, evidence_path = unique_pair(target_dir, path.name)
+
+        wrote_evidence = False
+        if result.evidence is not None:
+            try:
+                write_atomic(evidence_path, result.evidence.jpeg)
+                wrote_evidence = True
+            except OSError as exc:
+                raise ActionError("EVIDENCE_WRITE_FAILED", str(exc)) from exc
+        else:  # no debería pasar con los presets nuevos: todo animal trae su fotograma
+            logger.warning("%s no trae fotograma de evidencia", path.name)
+
+        try:
+            if kind is DesktopActionType.COPY:
+                shutil.copy2(str(path), str(target))
+            else:
+                shutil.move(str(path), str(target))
+        except OSError as exc:
+            if wrote_evidence:
+                evidence_path.unlink(missing_ok=True)  # nunca un fotograma huérfano (CA-7)
+            raise ActionError("DESKTOP_ACTION_FAILED", str(exc)) from exc
         return DesktopAction(type=kind, destination_folder=folder)
 
     return apply_action

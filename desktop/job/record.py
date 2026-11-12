@@ -29,7 +29,7 @@ def evidence_ref(result) -> Optional[dict]:
         "timestamp_seconds": round(ev.timestamp_seconds, 2),
         "bbox": list(ev.bbox),
         "width": ev.width,
-        "height": ev.height,
+        "height": ev.clean_height,  # el fotograma sin la franja, que es el que se exporta (F2-D1)
     }
 
 

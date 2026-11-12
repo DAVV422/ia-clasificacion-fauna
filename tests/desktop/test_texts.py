@@ -34,7 +34,8 @@ def text(event):
 
 def test_species_line():
     assert (
-        text(done(result(), COPY)).strip() == "🐾  Panthera onca (jaguar) 94 % · 00:07 · COPIADO a panthera_onca_jaguar"
+        text(done(result(), COPY)).strip()
+        == "🐾  Panthera onca (jaguar) 94 % · 00:07 · COPIADO a panthera_onca_jaguar (+ fotograma)"
     )
     move = DesktopAction(type="move", destination_folder="panthera_sp")
     genus = text(done(result(rank="genus", name="Panthera", common="panthera species"), move))

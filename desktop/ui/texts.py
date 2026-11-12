@@ -48,7 +48,8 @@ def file_done_lines(event, total: int) -> List[Line]:
         review = "  ⚠️ revisar" if result.low_evidence else ""
         conf = f"{round(result.decision.confidence * 100)} %"
         dest = event.action.destination_folder
-        lines.append((f"   🐾  {name}{level} {conf}{when} · {_verb(event.action)} a {dest}{review}", "ok"))
+        photo = " (+ fotograma)" if result.evidence is not None else ""
+        lines.append((f"   🐾  {name}{level} {conf}{when} · {_verb(event.action)} a {dest}{photo}{review}", "ok"))
     elif category == "person":
         lines.append(("   🧍  Persona · queda en el origen", "dim"))
     elif category == "vehicle":
