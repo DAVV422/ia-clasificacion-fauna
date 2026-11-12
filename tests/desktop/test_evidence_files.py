@@ -147,12 +147,12 @@ def test_move_aborted_if_evidence_fails(one_video, tmp_path, monkeypatch):
 
 
 def test_evidence_removed_if_copy_fails(one_video, tmp_path, monkeypatch):
-    import desktop.job.actions as actions
+    import desktop.job.transfer as transfer
 
     def fail(src, dst):
-        raise OSError("disco lleno")
+        raise OSError("la SD se desconectó")
 
-    monkeypatch.setattr(actions.shutil, "copy2", fail)
+    monkeypatch.setattr(transfer, "copy_with_fsync", fail)  # HU-DS-30: la copia verificada
     dest = tmp_path / "out"
     done = run(one_video, dest)["CAM01_20260315_042210.mp4"]
     assert done.status == "error" and done.error_code == "DESKTOP_ACTION_FAILED"

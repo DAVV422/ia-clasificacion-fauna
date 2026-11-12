@@ -4,26 +4,31 @@
   (carpeta: HU-DS-03; fotograma: HU-DS-10).
 - Todo lo demás → **queda en el origen** (HU-DS-02), sin fotograma en disco (F2-D2, F2-D9).
 
-Orden (F2-D3): primero el fotograma y después el archivo. Si falla el fotograma, el archivo no se toca
-(``EVIDENCE_WRITE_FAILED``); si falla la copia o el movimiento, se borra el fotograma recién escrito.
-``apply_action(result, path)`` devuelve el ``DesktopAction`` del registro (PKG §3). El mover verificado
-(con ``.part`` y ``sha256``) llega con HU-DS-30.
+Lo que se reubica pasa por la sección de guardado de ``transfer.save_file`` (HU-DS-30): el diario, el fotograma
+primero (F2-D3), la copia verificada con ``sha256`` (o el renombre si es "mover" en el mismo disco) y el borrado
+del original. ``apply_action(result, path)`` devuelve:
+
+- ``LEFT_IN_PLACE`` (un ``DesktopAction``) si el archivo queda en el origen; o
+- un ``transfer.Saved``: el archivo ya está en su lugar y quien llama escribe ``saved.line`` y llama a ``commit()``.
+
+Si algo falla, todo queda como antes y se lanza ``ActionError`` con el código de E-11.
 """
 
 import logging
 import shutil
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable, Optional, Union
 
 from wwm_pipeline.enums import DesktopActionType
 from wwm_pipeline.package import DesktopAction
 
 from .file_ops import safe_folder_name, unique_pair, write_atomic
 from .placement import should_relocate
-from .record import LEFT_IN_PLACE
+from .record import LEFT_IN_PLACE, build_line
+from .transfer import DISK_MARGIN_BYTES, Fault, Saved, TransferError, _no_fault, same_volume, save_file
 
 logger = logging.getLogger("desktop.job")
-ApplyAction = Callable[[object, Path], DesktopAction]
+ApplyAction = Callable[[object, Path], Union[DesktopAction, Saved]]
 
 
 class ActionError(Exception):
@@ -35,14 +40,25 @@ class ActionError(Exception):
         self.message = message
 
 
-def make_species_action(dest_root: Path, action: str) -> ApplyAction:
-    """``apply_action`` para ``FolderJob``: copia (``"copy"``) o mueve (``"move"``) solo lo que se reubica."""
+def make_species_action(
+    dest_root: Path,
+    action: str,
+    *,
+    fault: Fault = _no_fault,
+    volume: Optional[bool] = None,
+    disk_usage: Callable[[str], Any] = shutil.disk_usage,
+) -> ApplyAction:
+    """``apply_action`` para ``FolderJob``: copia (``"copy"``) o mueve (``"move"``) solo lo que se reubica.
+
+    ``fault``, ``volume`` y ``disk_usage`` existen para los tests (cortes inyectados, forzar "otro volumen",
+    simular el disco lleno).
+    """
     if action not in ("copy", "move"):
         raise ValueError(f"acción desconocida: {action!r}")
     dest_root = Path(dest_root)
     kind = DesktopActionType.COPY if action == "copy" else DesktopActionType.MOVE
 
-    def apply_action(result, path: Path) -> DesktopAction:
+    def apply_action(result, path: Path) -> Union[DesktopAction, Saved]:
         if not should_relocate(result):
             return LEFT_IN_PLACE
         folder = safe_folder_name(result.taxonomy)
@@ -51,27 +67,32 @@ def make_species_action(dest_root: Path, action: str) -> ApplyAction:
             target_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
             raise ActionError("DESTINATION_NOT_WRITABLE", str(exc)) from exc
-        target, evidence_path = unique_pair(target_dir, path.name)
 
-        wrote_evidence = False
-        if result.evidence is not None:
-            try:
-                write_atomic(evidence_path, result.evidence.jpeg)
-                wrote_evidence = True
-            except OSError as exc:
-                raise ActionError("EVIDENCE_WRITE_FAILED", str(exc)) from exc
-        else:  # no debería pasar con los presets nuevos: todo animal trae su fotograma
+        jpeg = result.evidence.jpeg if result.evidence is not None else None
+        if jpeg is None:  # no debería pasar con los presets nuevos: todo animal trae su fotograma
             logger.warning("%s no trae fotograma de evidencia", path.name)
+        rename_only = kind is DesktopActionType.MOVE and (same_volume(path, target_dir) if volume is None else volume)
+        needed = len(jpeg or b"") + DISK_MARGIN_BYTES + (0 if rename_only else result.size_bytes or 0)
+        if disk_usage(str(target_dir)).free < needed:  # F3-D7 · CB-92
+            raise ActionError("DISK_SPACE_LOW", f"no hay espacio para {path.name}")
 
+        target, evidence_path = unique_pair(target_dir, path.name)
+        line = build_line(result, DesktopAction(type=kind, destination_folder=folder))
         try:
-            if kind is DesktopActionType.COPY:
-                shutil.copy2(str(path), str(target))
-            else:
-                shutil.move(str(path), str(target))
-        except OSError as exc:
-            if wrote_evidence:
-                evidence_path.unlink(missing_ok=True)  # nunca un fotograma huérfano (CA-7)
-            raise ActionError("DESKTOP_ACTION_FAILED", str(exc)) from exc
-        return DesktopAction(type=kind, destination_folder=folder)
+            return save_file(
+                dest_root=dest_root,
+                source=Path(path),
+                target=target,
+                evidence=evidence_path if jpeg is not None else None,
+                evidence_jpeg=jpeg,
+                sha256=result.sha256,
+                move=kind is DesktopActionType.MOVE,
+                line=line,
+                volume=volume,
+                fault=fault,
+                write_evidence=write_atomic,
+            )
+        except TransferError as exc:
+            raise ActionError(exc.code, exc.message) from exc
 
     return apply_action

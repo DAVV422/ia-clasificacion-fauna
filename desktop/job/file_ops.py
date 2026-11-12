@@ -2,7 +2,7 @@
 
 - HU-DS-03: ``safe_folder_name`` (nombre de la carpeta por especie, válido en Windows).
 - HU-DS-10: ``unique_pair``, ``evidence_name`` y ``write_atomic`` (el fotograma junto al archivo).
-- La fase 3 (HU-DS-30) agrega ``copy_verified`` y ``move_verified``.
+- HU-DS-30: la copia y el movimiento verificados están en ``transfer.py`` (con el diario y ``reconcile``).
 """
 
 import os
@@ -97,7 +97,10 @@ def write_atomic(path: Path, data: bytes) -> None:
     """Escribe a ``<path>.part`` y lo renombra; reintenta el renombre si un antivirus lo bloquea un instante."""
     part = path.with_name(path.name + ".part")
     try:
-        part.write_bytes(data)
+        with open(part, "wb") as fh:  # HU-DS-30: con fsync, para que un corte de luz no deje un JPEG vacío
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
         for attempt in range(REPLACE_RETRIES):
             try:
                 os.replace(part, path)

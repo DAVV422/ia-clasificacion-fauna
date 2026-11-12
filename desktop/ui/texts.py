@@ -26,7 +26,10 @@ def file_done_lines(event, total: int) -> List[Line]:
         (f"🔍 [{event.file_index}/{total}]  {event.file_name}  ({event.elapsed_ms / 1000:.0f} s)", "dim")
     ]
     if event.status == "cancelled":
-        lines.append(("   ⏹  Detenido a mitad del archivo · queda en el origen", "warn"))
+        if event.error_code:  # DISK_SPACE_LOW (F3-D7): no se escribió nada de este archivo
+            lines.append((f"   ⏹  {message_for(event.error_code, ref=event.error_code)}", "error"))
+        else:
+            lines.append(("   ⏹  Detenido a mitad del archivo · queda en el origen", "warn"))
         return lines
     if event.status == "error":
         lines.append(
@@ -50,6 +53,8 @@ def file_done_lines(event, total: int) -> List[Line]:
         dest = event.action.destination_folder
         photo = " (+ fotograma)" if result.evidence is not None else ""
         lines.append((f"   🐾  {name}{level} {conf}{when} · {_verb(event.action)} a {dest}{photo}{review}", "ok"))
+        if getattr(event, "warning_code", None):
+            lines.append((f"   ⚠  {message_for(event.warning_code)}", "warn"))
     elif category == "person":
         lines.append(("   🧍  Persona · queda en el origen", "dim"))
     elif category == "vehicle":
@@ -70,9 +75,19 @@ def summary_lines(summary) -> List[Line]:
         (f"  Clasificados (copiados o movidos) : {summary.relocated}  🐾", "ok"),
         (f"  Quedaron en el origen   : {summary.left_in_place}", "dim"),
         (f"     de ellos, con error  : {summary.errors}", "error" if summary.errors else "dim"),
+        *_not_deleted_lines(summary),
         (f"  Tiempo                  : {format_duration(summary.elapsed_ms / 1000)}", "dim"),
         (f"{'─' * 54}\n", "head"),
     ]
+
+
+def _not_deleted_lines(summary) -> List[Line]:
+    n = getattr(summary, "not_deleted", 0)
+    if not n:
+        return []
+    if n == 1:
+        return [("  ⚠  1 no se pudo borrar del origen (en uso): quedó como copia", "warn")]
+    return [(f"  ⚠  {n} no se pudieron borrar del origen (en uso): quedaron como copia", "warn")]
 
 
 def summary_dialog_text(summary, output_dir: str) -> str:
@@ -80,8 +95,13 @@ def summary_dialog_text(summary, output_dir: str) -> str:
         f"Proceso {'detenido' if summary.stopped else 'terminado'}.\n\n"
         f"  Clasificados            : {summary.relocated}\n"
         f"  Quedaron en el origen   : {summary.left_in_place}\n"
-        f"     de ellos, con error  : {summary.errors}\n\n"
-        f"Resultados guardados en:\n{output_dir}"
+        f"     de ellos, con error  : {summary.errors}\n"
+        + (
+            f"  No se pudieron borrar del origen: {summary.not_deleted} (quedaron como copia)\n"
+            if getattr(summary, "not_deleted", 0)
+            else ""
+        )
+        + f"\nResultados guardados en:\n{output_dir}"
     )
 
 

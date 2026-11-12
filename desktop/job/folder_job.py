@@ -22,12 +22,14 @@ from .actions import ActionError
 from .events import FileDone, JobDone, JobError, JobStarted, JobSummary, Progress
 from .placement import is_same_or_inside
 from .record import LEFT_IN_PLACE, build_line, error_line
+from .transfer import HasLine, Record, Saved, reconcile
 
 logger = logging.getLogger("desktop.job")
 
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 PROGRESS_INTERVAL_S = 0.25  # como mucho un evento de progreso cada 250 ms por archivo
-ApplyAction = Callable[[object, Path], object]  # devuelve un wwm_pipeline.package.DesktopAction
+ApplyAction = Callable[[object, Path], object]  # devuelve un DesktopAction o un transfer.Saved (HU-DS-30)
+STOPPING_CODES = frozenset({"DISK_SPACE_LOW"})  # detienen el análisis; el archivo no cuenta como error (F3-D7)
 
 
 def list_media(source: Path) -> List[Path]:
@@ -62,6 +64,9 @@ class FolderJob:
         tmp_context=None,
         classify=classify_file,
         clock=time.monotonic,
+        record: Optional[Record] = None,
+        has_line: Optional[HasLine] = None,
+        skip: Optional[Callable[[Path], bool]] = None,
     ):
         self.source = Path(source)
         self.models = models
@@ -73,6 +78,9 @@ class FolderJob:
         self.tmp_context = tmp_context
         self.classify = classify
         self.clock = clock
+        self.record = record  # HU-DS-14 le pasa JobLog.append; sin él, las líneas solo van en FileDone
+        self.has_line = has_line
+        self.skip = skip  # HU-DS-14: los ya procesados ("Continuar"); se evalúa después de reconcile()
 
     def _tmp(self):
         if self.tmp_context is not None:
@@ -88,8 +96,18 @@ class FolderJob:
             summary = JobSummary(total=0, elapsed_ms=self._ms(t0))
             self.events.put(JobDone(summary))
             return summary
+        if self.dest is not None:  # HU-DS-30: lo que quedó a medias de un corte anterior
+            try:
+                reconcile(self.dest, self.record, self.has_line)
+            except OSError as exc:
+                self.events.put(JobError("DESTINATION_NOT_WRITABLE", str(exc)))
+                summary = JobSummary(total=0, elapsed_ms=self._ms(t0))
+                self.events.put(JobDone(summary))
+                return summary
         try:
             files = list_media(self.source)
+            if self.skip is not None:
+                files = [p for p in files if not self.skip(p)]
         except OSError as exc:
             self.events.put(JobError("DESKTOP_SOURCE_UNREADABLE", str(exc)))
             summary = JobSummary(total=0, elapsed_ms=self._ms(t0))
@@ -98,7 +116,7 @@ class FolderJob:
 
         total = len(files)
         self.events.put(JobStarted(total))
-        processed = with_animals = errors = relocated = 0
+        processed = with_animals = errors = relocated = not_deleted = 0
         stopped = False
         for i, path in enumerate(files, start=1):
             if self.stop.is_set():
@@ -108,7 +126,11 @@ class FolderJob:
             if done.status == "cancelled":
                 stopped = True
                 self.events.put(done)
+                if done.error_code in STOPPING_CODES:
+                    self.events.put(JobError(done.error_code, done.error_message or ""))
                 break
+            if done.warning_code == "SOURCE_NOT_DELETED":
+                not_deleted += 1
             processed += 1
             if done.status == "error":
                 errors += 1
@@ -125,6 +147,7 @@ class FolderJob:
             errors=errors,
             relocated=relocated,
             left_in_place=processed - relocated,
+            not_deleted=not_deleted,
             stopped=stopped or self.stop.is_set() and processed < total,
             elapsed_ms=self._ms(t0),
         )
@@ -155,19 +178,43 @@ class FolderJob:
             logger.exception("Falló la clasificación de %s", path.name)
             return self._error(index, path, t0, "IA_INTERNAL", str(exc))
 
-        action: Any = LEFT_IN_PLACE
+        outcome: Any = LEFT_IN_PLACE
         if self.apply_action is not None:
             try:
-                action = self.apply_action(result, path)
+                outcome = self.apply_action(result, path)
             except ActionError as exc:
+                if exc.code in STOPPING_CODES:
+                    logger.error("Se detiene el análisis en %s: %s", path.name, exc.code)
+                    return FileDone(
+                        index, path.name, "cancelled", self._ms(t0), error_code=exc.code, error_message=exc.message
+                    )
                 logger.exception("No se pudo reubicar %s (%s)", path.name, exc.code)
                 return self._error(index, path, t0, exc.code, exc.message, result=result)
             except OSError as exc:
                 logger.exception("No se pudo copiar o mover %s", path.name)
                 return self._error(index, path, t0, "DESKTOP_ACTION_FAILED", str(exc), result=result)
+        warning = None
+        if isinstance(outcome, Saved):  # HU-DS-30: la línea va antes de cerrar el diario (C5 → C6)
+            line, warning = outcome.line, outcome.warning_code
+            self._record(line, outcome.extra)
+            outcome.commit()
+        else:
+            line = build_line(result, outcome)
+            self._record(line, {})
         return FileDone(
-            index, path.name, "done", self._ms(t0), result=result, action=action, line=build_line(result, action)
+            index,
+            path.name,
+            "done",
+            self._ms(t0),
+            result=result,
+            action=line.desktop_action,
+            line=line,
+            warning_code=warning,
         )
+
+    def _record(self, line, extra) -> None:
+        if self.record is not None and line is not None:
+            self.record(line, extra)
 
     def _error(self, index: int, path: Path, t0: float, code: str, message: str, result=None) -> FileDone:
         """El archivo queda en el origen; la línea del registro lleva el código (HU-DS-02 CA-2)."""
@@ -182,6 +229,7 @@ class FolderJob:
             line = error_line(path.name, sha, size, code)
         except OSError:
             logger.warning("No se pudo leer %s ni para su sha256; solo queda en el log", path.name)
+        self._record(line, {})
         return FileDone(
             index,
             path.name,

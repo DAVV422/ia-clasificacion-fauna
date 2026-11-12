@@ -61,3 +61,19 @@ def test_summary():
     assert "2 min 05 s" in joined
     assert "Quedaron en el origen   : 6" in summary_dialog_text(summary, "D:\\salida")
     assert format_duration(3725) == "1 h 02 min"
+
+
+# ---------------------------------------------------------------------------
+# HU-DS-30 · Disco lleno y original en uso
+# ---------------------------------------------------------------------------
+def test_disk_full_and_not_deleted_texts():
+    stopped = file_done_lines(done(None, status="cancelled", code="DISK_SPACE_LOW"), 10)
+    assert "Espacio insuficiente" in stopped[1][0] and stopped[1][1] == "error"
+    event = FileDone(3, "CAM01.mp4", "done", 12_000, result=result(), action=COPY, warning_code="SOURCE_NOT_DELETED")
+    lines = file_done_lines(event, 10)
+    assert "COPIADO a panthera_onca_jaguar" in lines[1][0]
+    assert "no se pudo borrar el original" in lines[2][0]
+    summary = JobSummary(total=5, processed=5, relocated=3, left_in_place=2, not_deleted=2)
+    assert any("2 no se pudieron borrar del origen" in t for t, _ in summary_lines(summary))
+    assert "No se pudieron borrar del origen: 2" in summary_dialog_text(summary, "D:\salida")
+    assert not any("borrar" in t for t, _ in summary_lines(JobSummary(total=1, processed=1)))

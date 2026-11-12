@@ -15,6 +15,7 @@ MESSAGES = {
     "IA_INVALID_FORMAT": "Formato no compatible. Queda en la carpeta de origen.",
     "FILE_LOCKED": "El archivo está en uso por otro programa. Queda en la carpeta de origen.",
     "FILE_MOVE_VERIFY_FAILED": "No se pudo verificar la copia; el original no se movió.",
+    "SOURCE_NOT_DELETED": "Se copió, pero no se pudo borrar el original (está en uso). Bórralo a mano si quieres.",
     "EVIDENCE_WRITE_FAILED": "No se pudo guardar el fotograma; el archivo queda en la carpeta de origen.",
     "DESKTOP_ACTION_FAILED": "No se pudo copiar o mover el archivo. Queda en la carpeta de origen.",
     "IA_INTERNAL": "No se pudo analizar el archivo por un error inesperado. Queda en la carpeta de origen.",
