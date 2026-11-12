@@ -215,3 +215,35 @@ def test_long_file_name_is_shortened():
     assert out.startswith(text + " · CAM01") and out.endswith("_end.mp4") and "…" in out and len(out) <= 80
     assert fit_tail(text, "corto.mp4", len, 200) == text + " · corto.mp4"
     assert fit_tail(text, name, len, 10) == text  # si ni siquiera entra el texto, no se agrega el nombre
+
+
+# ---------------------------------------------------------------------------
+# HU-DS-18 · El mismo mm:ss en la franja, la ventana y el registro
+# ---------------------------------------------------------------------------
+def test_mm_ss_consistent_in_label_window_and_line(tmp_path, monkeypatch):
+    """CA-2 y CA-3: con la evidencia pasado el minuto, los tres lugares dicen lo mismo."""
+    import wwm_pipeline.evidence as evidence
+    from desktop.ui.texts import file_done_lines
+    from wwm_pipeline.evidence import mmss
+
+    src = tmp_path / "SD"
+    src.mkdir()
+    path = src / "largo.mp4"
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), 2, (320, 180))
+    for i in range(2 * 80):  # 80 s a 2 fps; el animal recién a partir del segundo 75
+        writer.write(frame(i, 210 if i >= 150 else 40))
+    writer.release()
+
+    labels = []
+    original = evidence.fit_tail
+    monkeypatch.setattr(evidence, "fit_tail", lambda *a, **k: labels.append(original(*a, **k)) or labels[-1])
+    done = run(src, tmp_path / "out")["largo.mp4"]
+    ev = done.result.evidence
+    assert ev.timestamp_seconds >= 75
+    expected = mmss(ev.timestamp_seconds)
+    assert expected.startswith("01:1")
+    assert f"· {expected} ·" in labels[0]  # la franja
+    assert f"· {expected} ·" in file_done_lines(done, 1)[-1][0]  # la ventana
+    line = done.line.evidence  # el registro
+    assert line.timestamp_seconds == round(ev.timestamp_seconds, 2) and mmss(line.timestamp_seconds) == expected
+    assert line.frame_index == ev.frame_index and tuple(line.bbox) == tuple(ev.bbox)

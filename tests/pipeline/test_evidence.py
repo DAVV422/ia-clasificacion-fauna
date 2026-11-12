@@ -206,3 +206,23 @@ def test_person_from_classifier_vote():
 def test_legacy_presets_have_no_evidence(tmp_path):
     video = write_video(tmp_path / "v.mp4", 20, 10)
     assert classify_file(video, None, PipelineConfig.legacy_desktop(), FakeModels()).evidence is None
+
+
+@pytest.mark.parametrize(
+    "seconds,expected",
+    [
+        (0, "00:00"),
+        (7.07, "00:07"),
+        (7.99, "00:07"),
+        (59.99, "00:59"),
+        (60.0, "01:00"),
+        (75.4, "01:15"),
+        (3599.9, "59:59"),
+        (3600, "1:00:00"),
+        (3723.9, "1:02:03"),
+        (-0.01, "00:00"),
+    ],
+)
+def test_format_mm_ss(seconds, expected):
+    """HU-DS-18 CA-1: trunca, no redondea; h:mm:ss desde una hora."""
+    assert mmss(seconds) == expected

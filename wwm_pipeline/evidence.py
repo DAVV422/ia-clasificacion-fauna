@@ -91,8 +91,9 @@ def xyxy_from_prototype(box: Sequence[float]) -> BBox:
 
 
 def mmss(seconds: float) -> str:
-    """``00:07``; ``1:02:03`` desde una hora."""
-    total = int(seconds)
+    """``00:07``; ``1:02:03`` desde una hora. **Trunca** (7,9 s → ``00:07``): es el segundo que muestra un
+    reproductor cuando se pausa en ese frame. Es el único formato de la app (franja, ventana y registro; HU-DS-18)."""
+    total = int(max(0.0, seconds))
     hours, rest = divmod(total, 3600)
     minutes, secs = divmod(rest, 60)
     return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes:02d}:{secs:02d}"
