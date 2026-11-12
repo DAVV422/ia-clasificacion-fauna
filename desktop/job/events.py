@@ -19,7 +19,7 @@ class JobStarted:
 class Progress:
     file_index: int  # 1..N
     file_name: str
-    stage: str  # "sampling" | "detection" | "classification" (lo que informa el pipeline)
+    stage: str  # "sampling" | "detection" | "classification" (pipeline) | "save" (HU-DS-31: guardando)
     done: int
     total: int
 

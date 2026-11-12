@@ -209,6 +209,18 @@ def test_duplicate_content_with_other_name_is_analyzed(sd, tmp_path):
     log.close()
 
 
+def test_duplicate_of_a_moved_file_is_analyzed(sd, tmp_path):
+    """Con "mover", el original ya no está en el origen: un archivo idéntico con otro nombre no es un renombre."""
+    dest = tmp_path / "out"
+    stop = threading.Event()
+    run(sd, dest, action="move", stop=stop, classify=stop_after(1, stop))  # mueve especie_a
+    assert not (sd / "especie_a.mp4").exists()
+    log = JobLog(dest)
+    log.start(sd, "move")
+    assert not log.is_processed(sd / "genero_c.mp4")  # mismo contenido que especie_a
+    log.close()
+
+
 def test_same_name_other_content_is_analyzed(sd, tmp_path):
     dest = tmp_path / "out"
     run(sd, dest)

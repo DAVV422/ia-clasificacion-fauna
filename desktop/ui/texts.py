@@ -66,12 +66,34 @@ def file_done_lines(event, total: int) -> List[Line]:
     return lines
 
 
+CLOSE_PROMPT = (
+    "Análisis en curso",
+    "Hay un análisis en curso. ¿Detener y salir?\n\n"
+    "Lo analizado queda guardado y podrás continuar después con el mismo destino.",
+)
+RESUME_HINT = "Para seguir, vuelve a pulsar Iniciar con el mismo destino."
+
+
+def stopping_text(stage, file_name) -> str:
+    """HU-DS-31 (F3-D5): clasificando, se cancela; guardando, termina."""
+    if stage == "save" and file_name:
+        return f"⏹  Deteniendo… terminando de guardar {file_name}"
+    return "⏹  Deteniendo… se cancela el análisis del archivo actual (queda en el origen y se repite al continuar)"
+
+
+def stopped_title(summary) -> str:
+    """E-09: "Detenido: N de M"."""
+    return f"Detenido: {summary.processed} de {summary.total}"
+
+
 def summary_lines(summary) -> List[Line]:
     """El resumen final del log (E-09: contadores, sin estadísticas por especie)."""
-    title = "⏹  ANÁLISIS DETENIDO" if summary.stopped else "✅  ANÁLISIS COMPLETADO"
+    title = f"⏹  {stopped_title(summary).upper()}" if summary.stopped else "✅  ANÁLISIS COMPLETADO"
+    hint = [(f"  {RESUME_HINT}", "warn")] if summary.stopped and summary.processed < summary.total else []
     return [
         (f"\n{'─' * 54}", "head"),
         (f"  {title}", "head"),
+        *hint,
         (f"  Total en la carpeta     : {summary.total}", "head"),
         (f"  Analizados              : {summary.processed}", "head"),
         (f"  Clasificados (copiados o movidos) : {summary.relocated}  🐾", "ok"),
@@ -94,8 +116,8 @@ def _not_deleted_lines(summary) -> List[Line]:
 
 def summary_dialog_text(summary, output_dir: str) -> str:
     return (
-        f"Proceso {'detenido' if summary.stopped else 'terminado'}.\n\n"
-        f"  Clasificados            : {summary.relocated}\n"
+        (f"{stopped_title(summary)}. {RESUME_HINT}\n\n" if summary.stopped else "Proceso terminado.\n\n")
+        + f"  Clasificados            : {summary.relocated}\n"
         f"  Quedaron en el origen   : {summary.left_in_place}\n"
         f"     de ellos, con error  : {summary.errors}\n"
         + (

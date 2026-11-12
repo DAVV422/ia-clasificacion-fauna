@@ -29,6 +29,7 @@ logger = logging.getLogger("desktop.job")
 SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 PROGRESS_INTERVAL_S = 0.25  # como mucho un evento de progreso cada 250 ms por archivo
 ApplyAction = Callable[[object, Path], object]  # devuelve un DesktopAction o un transfer.Saved (HU-DS-30)
+SAVE_STAGE = "save"  # HU-DS-31: el archivo ya está clasificado y se está guardando
 STOPPING_CODES = frozenset({"DISK_SPACE_LOW"})  # detienen el análisis; el archivo no cuenta como error (F3-D7)
 
 
@@ -192,6 +193,9 @@ class FolderJob:
             logger.exception("Falló la clasificación de %s", path.name)
             return self._error(index, path, t0, "IA_INTERNAL", str(exc))
 
+        # HU-DS-31 (F3-D5): hasta aquí, Detener cancela (no se escribió nada). Desde aquí, la sección de guardado
+        # (diario, fotograma, copia o movimiento y línea) no consulta stop: siempre termina.
+        self.events.put(Progress(index, path.name, SAVE_STAGE, 0, 1))
         outcome: Any = LEFT_IN_PLACE
         if self.apply_action is not None:
             try:

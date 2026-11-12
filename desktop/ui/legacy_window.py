@@ -57,8 +57,13 @@ from desktop.ui import texts
 import requests
 
 # Peso de cada etapa del pipeline dentro del avance de un archivo (para la barra de progreso).
-STAGE_SPAN = {"sampling": (0.0, 0.15), "detection": (0.15, 0.85), "classification": (0.85, 1.0)}
-STAGE_LABEL = {"sampling": "lectura", "detection": "detección", "classification": "clasificación"}
+STAGE_SPAN = {
+    "sampling": (0.0, 0.15),
+    "detection": (0.15, 0.85),
+    "classification": (0.85, 0.97),
+    "save": (0.97, 1.0),  # HU-DS-31: fotograma + copia o movimiento + línea del registro
+}
+STAGE_LABEL = {"sampling": "lectura", "detection": "detección", "classification": "clasificación", "save": "guardando"}
 
 
 # ---------------------------------------------------------------------------
@@ -175,8 +180,12 @@ class WildlifeDesktopApp(tk.Tk):
         self.job_events: queue.Queue = queue.Queue()  # eventos de FolderJob (HU-DS-01)
         self.stop_event = threading.Event()
         self.is_running = False
+        self._stage = None  # la etapa del archivo en curso (HU-DS-31)
+        self._current_file = None
+        self._close_after_job = False
 
         self._build_ui()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)  # HU-DS-31 CA-4
         self._poll_log_queue()
 
         # Cargar modelos en segundo plano al arrancar
@@ -558,6 +567,7 @@ class WildlifeDesktopApp(tk.Tk):
         self._job_log = log
 
         self.is_running = True
+        self._close_after_job = False
         self.stop_event = threading.Event()
         self.start_btn.config(state="disabled", text="⏳  Procesando…")
         self.stop_btn.config(state="normal")
@@ -574,12 +584,26 @@ class WildlifeDesktopApp(tk.Tk):
             has_line=log.has_line,
             skip=log.is_processed,
         )
-        threading.Thread(target=job.run, daemon=True).start()
+        # HU-DS-31: no-daemon, para que salir de Python espere el final de la sección de guardado
+        self._job_thread = threading.Thread(target=job.run, daemon=False, name="FolderJob")
+        self._job_thread.start()
 
     def _on_stop(self):
         if self.is_running and not self.stop_event.is_set():
             self.stop_event.set()
-            self._log("⏹  Deteniendo… (se corta el archivo actual)", "warn")
+            self.stop_btn.config(state="disabled", text="⏳  Deteniendo…")
+            self._log(texts.stopping_text(self._stage, self._current_file), "warn")
+
+    def _on_close(self):
+        """HU-DS-31 CA-4: con un análisis en curso, pregunta; con Sí, detiene y cierra al llegar JobDone."""
+        if not self.is_running:
+            self.destroy()
+            return
+        if self._close_after_job:
+            return
+        if messagebox.askyesno(*texts.CLOSE_PROMPT):
+            self._close_after_job = True
+            self._on_stop()
 
     # -----------------------------------------------------------------------
     # Eventos del análisis (HU-DS-01): llegan por la cola, se procesan en el hilo de la UI
@@ -605,8 +629,10 @@ class WildlifeDesktopApp(tk.Tk):
             self._log(f"  🔬 Modo    : precisión (video completo + votación)", "head")
             self._log(f"{'─'*54}\n", "head")
         elif isinstance(event, Progress):
+            self._stage, self._current_file = event.stage, event.file_name
             self._show_progress(event, info)
         elif isinstance(event, FileDone):
+            self._stage = None
             info.setdefault("done_ms", []).append(event.elapsed_ms)
             self._log_file_done(event, info.get("total", 0))
             total = info.get("total") or 1
@@ -653,6 +679,9 @@ class WildlifeDesktopApp(tk.Tk):
             f"{summary.left_in_place} quedaron en el origen"
         )
         self._reset_ui()
+        if self._close_after_job:  # HU-DS-31 CA-4: "¿Detener y salir?" → Sí
+            self.destroy()
+            return
         if summary.total:
             messagebox.showinfo(
                 "Análisis detenido" if summary.stopped else "Análisis completado",
@@ -662,5 +691,6 @@ class WildlifeDesktopApp(tk.Tk):
     def _reset_ui(self):
         self.is_running = False
         self.start_btn.config(state="normal", text="▶   Iniciar Análisis")
-        self.stop_btn.config(state="disabled")
+        self.stop_btn.config(state="disabled", text="⏹   Detener")
+        self._stage = self._current_file = None
 

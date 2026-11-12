@@ -236,10 +236,14 @@ class JobLog:
             if e.line.file_name.lower() == name and e.local.get("source_mtime_ns") == st.st_mtime_ns:
                 return True  # sin leer el archivo
         # Mismo tamaño, pero otro nombre o la fecha cambió: se confirma por contenido. Con otro nombre, solo cuenta
-        # como "renombrado" si el nombre registrado ya no está en el origen; si sigue ahí, este es un duplicado
+        # como "renombrado" si el archivo registrado quedó en el origen (copy o left_in_place) y su nombre ya no
+        # está: si sigue ahí, o si se movió (con "mover" no se puede renombrar en el origen), este es un duplicado
         # (dos archivos iguales con nombres distintos) y se analiza como uno más.
         candidates = [
-            e for e in same_size if e.line.file_name.lower() == name or not (path.parent / e.line.file_name).exists()
+            e
+            for e in same_size
+            if e.line.file_name.lower() == name
+            or (e.line.desktop_action.type.value != "move" and not (path.parent / e.line.file_name).exists())
         ]
         if not candidates:
             return False
