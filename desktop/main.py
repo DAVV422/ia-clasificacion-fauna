@@ -9,6 +9,8 @@ Uso:
     python -m desktop.main              abre la app
     python -m desktop.main --version    imprime la versión
     python -m desktop.main --selftest   verifica rutas, logs e imports (sin cargar los modelos); código 0 si todo bien
+    python -m desktop.main --check-requirements   imprime el informe de requisitos (HU-DS-20) en JSON; código 1 si
+                                                   el equipo no es compatible
     python -m desktop.main --smoke DIR  carga los modelos locales y clasifica los archivos de DIR sin abrir la
                                         ventana (HU-DS-11); imprime un JSON; código 0 si todo bien
 """
@@ -92,6 +94,30 @@ def selftest() -> int:
     return 1 if failures else 0
 
 
+def check_requirements(needs_model_download: bool = False):
+    """HU-DS-20 · E-02 paso 1."""
+    from desktop import requirements_check as rc
+    from desktop.logging_setup import log_event
+
+    report = rc.check(rc.probe(), needs_model_download=needs_model_download)
+    log_event("desktop.requirements", "requisitos", report=report.to_dict())
+    return report
+
+
+def requirements_gate(needs_model_download: bool) -> bool:
+    """BLOQUEADA si no cumple el mínimo (no se cargan los modelos); aviso una vez por versión si está justo."""
+    from desktop import __version__, settings
+    from desktop.ui import requirements_view
+
+    report = check_requirements(needs_model_download)
+    if report.blocked:
+        requirements_view.show_blocked(report)
+        return False
+    if requirements_view.show_warning_once(report, settings.get("requirements_warned_version"), __version__):
+        settings.set_value("requirements_warned_version", __version__)
+    return True
+
+
 def resolve_models():
     """HU-DS-13 (F4-D5): elige la carpeta de modelos y la deja fijada en ``paths``. Devuelve (carpeta, manifiesto,
     pendientes): la de la instalación si tiene ``models.ok`` y está bien; si no, la de AppData."""
@@ -114,8 +140,11 @@ def resolve_models():
 
 
 def ensure_models() -> bool:
-    """E-02 paso 2: si falta algo o no coincide, la pantalla DESCARGANDO; ``False`` si la persona canceló o salió."""
+    """E-02: requisitos y, si falta algo o no coincide, la pantalla DESCARGANDO; ``False`` si la app no debe seguir
+    (equipo no compatible, o la persona canceló o salió)."""
     root, manifest, pending = resolve_models()
+    if not requirements_gate(needs_model_download=bool(pending)):
+        return False
     if not pending:
         return True
     from desktop.ui.first_run import run_first_run
@@ -184,6 +213,12 @@ def run(argv=None) -> int:
     if "--selftest" in args:
         _close_splash()
         return selftest()
+    if "--check-requirements" in args:
+        import json
+
+        report = check_requirements()
+        print(json.dumps(report.to_dict(), indent=1))  # ASCII: funciona en cualquier consola
+        return 1 if report.blocked else 0
     if "--smoke" in args:
         _close_splash()
         i = args.index("--smoke")
