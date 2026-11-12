@@ -89,7 +89,8 @@ foreach ($v in $variants) {
 }
 
 Step "SHA256SUMS.txt"
-$lines = Get-ChildItem $outDir -File | Where-Object { $_.Name -like "WWM-Clasificador-*$Version*" } | ForEach-Object {
+# Todos los instaladores de la carpeta (no solo los de esta versión): para QA-13 conviven 0.11.0 y 0.11.1.
+$lines = Get-ChildItem $outDir -File | Where-Object { $_.Name -like "WWM-Clasificador-*.exe" } | Sort-Object Name | ForEach-Object {
     $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
     "{0}  {1}  ({2:n0} MB)" -f $hash, $_.Name, ($_.Length / 1MB)
 }
