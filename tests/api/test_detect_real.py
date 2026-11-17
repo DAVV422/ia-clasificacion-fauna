@@ -40,6 +40,8 @@ def client():
             assert time.monotonic() < deadline, "los modelos no cargaron"
             time.sleep(0.5)
         assert app.state.models_status == "ready"
+        health = c.get("/api/v1/health")  # HU-IA-18 con los modelos reales
+        assert health.status_code == 200 and health.json()["version"]["classifier"] == "speciesnet-4.0.2a"
         yield c
 
 

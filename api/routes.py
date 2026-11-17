@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from wwm_pipeline.config import PipelineConfig
@@ -41,6 +42,38 @@ async def _save_upload(file: UploadFile, file_name: str, folder: Path) -> Path:
         while chunk := await file.read(CHUNK):
             out.write(chunk)
     return path
+
+
+# ---------------------------------------------------------------------------
+# GET /health (HU-IA-18, IA §3): sin API key y sin la envoltura; 503 mientras no esté lista
+# ---------------------------------------------------------------------------
+HEALTH_STATUS = {"ready": "ok", "loading": "loading", "missing": "models_missing", "error": "error"}
+
+
+@router.get("/health")
+async def health(request: Request):
+    from wwm_pipeline import __version__ as pipeline_version
+
+    state = request.app.state
+    settings = state.settings
+    status = state.models_status
+    body = {
+        "status": HEALTH_STATUS.get(status, status),
+        "models_loaded": status == "ready",
+        "queue": {"size": settings.inference_queue_size, "pending": getattr(state, "queue_pending", 0)},
+        "config": {
+            "sampling": PipelineConfig.web().sampling_label,
+            "max_video_seconds": settings.max_video_seconds,
+            "max_file_mb": settings.max_file_mb,
+        },
+        "version": {
+            "pipeline": pipeline_version,
+            "detector": state.model_names.get("detector"),
+            "classifier": state.model_names.get("classifier"),
+            "app": settings.app_version,
+        },
+    }
+    return JSONResponse(body, status_code=200 if status == "ready" else 503)
 
 
 @router.post("/detect")
