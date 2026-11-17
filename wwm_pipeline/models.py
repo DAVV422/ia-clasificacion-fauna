@@ -82,6 +82,25 @@ class ModelRegistry:
             self._device = "cuda" if torch.cuda.is_available() else "cpu"
         return self._device
 
+    def describe(self) -> dict:
+        """Qué modelos son, para ``model`` del contrato y ``/health`` (HU-IA-41): ``{"detector", "classifier"}``.
+
+        La versión de SpeciesNet sale de su ``info.json`` (carpeta local) o del identificador ``…/v4.0.2a/…``."""
+        import json
+        import re
+
+        version = None
+        info = Path(self.classifier_model) / "info.json"
+        if info.is_file():
+            try:
+                version = json.loads(info.read_text(encoding="utf-8")).get("version")
+            except (OSError, ValueError):
+                version = None
+        if not version:
+            match = re.search(r"v(\d+\.\d+\.\w+)", self.classifier_model)
+            version = match.group(1) if match else "desconocida"
+        return {"detector": "MDv5a", "classifier": f"speciesnet-{version}"}
+
     @property
     def loaded(self) -> bool:
         return self.detector is not None and self.classifier is not None

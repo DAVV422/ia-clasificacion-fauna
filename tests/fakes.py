@@ -13,6 +13,10 @@ PUMA = "9c564562-9429-405c-8529-04cff7752282;mammalia;carnivora;felidae;puma;con
 class FakeModels:
     """Detecta un animal en los frames cuya media de brillo supera ``bright_threshold``."""
 
+    def describe(self) -> dict:
+        """Como ``ModelRegistry.describe`` (HU-IA-41)."""
+        return {"detector": "MDv5a", "classifier": "speciesnet-4.0.2a"}
+
     def __init__(
         self,
         bright_threshold: float = 100.0,
