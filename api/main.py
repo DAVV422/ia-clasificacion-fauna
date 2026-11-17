@@ -21,7 +21,8 @@ from fastapi import FastAPI, Request
 
 from .envelope import fail
 from .errors import MESSAGES, install_handlers
-from .routes import router
+from .inference import InferenceWorker
+from .routes import busy, router
 from .security import check_settings, is_protected, valid_key
 from .settings import Settings
 
@@ -38,6 +39,16 @@ def _configure_env(settings: Settings) -> None:
     os.environ.setdefault("YOLO_OFFLINE", "true")
 
 
+def _set_torch_threads() -> None:
+    """Deja un núcleo para el servidor HTTP (como ``configure_threads`` del escritorio)."""
+    try:
+        import torch
+
+        torch.set_num_threads(max(1, (os.cpu_count() or 2) - 1))
+    except ImportError:  # pragma: no cover
+        pass
+
+
 def _load_models(app: FastAPI) -> None:
     settings: Settings = app.state.settings
     if not settings.models_present():
@@ -51,6 +62,7 @@ def _load_models(app: FastAPI) -> None:
     try:
         from wwm_pipeline.models import ModelRegistry
 
+        _set_torch_threads()
         registry = ModelRegistry(settings.detector_path, settings.classifier_dir)
         registry.load()
         app.state.models = registry
@@ -79,6 +91,7 @@ def create_app(settings: Optional[Settings] = None, models: Any = None) -> FastA
     app.state.models = models
     app.state.model_names = models.describe() if models is not None else {"detector": "MDv5a", "classifier": "?"}
     app.state.models_status = "ready" if models is not None else "loading"
+    app.state.worker = InferenceWorker(settings.inference_queue_size, settings.process_timeout_seconds)
 
     @app.middleware("http")
     async def request_context(request: Request, call_next):
@@ -88,6 +101,11 @@ def create_app(settings: Optional[Settings] = None, models: Any = None) -> FastA
         if is_protected(request.url.path) and not valid_key(request.headers.get("X-API-Key", ""), settings.ai_api_key):
             logger.warning("ia.auth.rejected path=%s request_id=%s", request.url.path, request.state.request_id)
             response = fail(request, "IA_UNAUTHORIZED", MESSAGES["IA_UNAUTHORIZED"])
+            response.headers["X-Request-ID"] = request.state.request_id
+            return response
+        # HU-IA-04: con la cola llena, IA_BUSY antes de recibir el archivo.
+        if request.method == "POST" and request.url.path.rstrip("/") == "/api/v1/detect" and app.state.worker.is_full():
+            response = busy(request, app.state.worker)
             response.headers["X-Request-ID"] = request.state.request_id
             return response
         response = await call_next(request)

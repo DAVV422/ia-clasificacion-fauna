@@ -2,9 +2,11 @@
 
 1. Guarda el archivo en una carpeta temporal **propia de la petición** (con su extensión: OpenCV la usa para elegir
    el decodificador).
-2. Lo clasifica con ``PipelineConfig.web()`` en un hilo (no bloquea el *event loop*; la cola de verdad es HU-IA-04).
+2. Lo clasifica con ``PipelineConfig.web()`` en el hilo de inferencia (HU-IA-04: uno a la vez, cola corta, corte
+   por tiempo; ``api/inference.py``).
 3. Arma ``DetectResult`` (``wwm_pipeline.response``), validado contra el contrato, y responde la envoltura.
-4. Borra esa carpeta entera en un ``finally``, también si hubo error (HU-IA-05: la IA no guarda nada, IA §1).
+4. Borra esa carpeta entera, también si hubo error (HU-IA-05: la IA no guarda nada, IA §1). Si el archivo llegó al
+   hilo, la borra el hilo al terminar (con un *timeout*, todavía puede estar leyéndolo); si no, la petición.
 """
 
 import logging
@@ -16,7 +18,6 @@ from typing import Optional
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
-from starlette.concurrency import run_in_threadpool
 
 from wwm_pipeline.config import PipelineConfig
 from wwm_pipeline.pipeline import classify_file
@@ -60,7 +61,7 @@ async def health(request: Request):
     body = {
         "status": HEALTH_STATUS.get(status, status),
         "models_loaded": status == "ready",
-        "queue": {"size": settings.inference_queue_size, "pending": getattr(state, "queue_pending", 0)},
+        "queue": {"size": state.worker.queue_size, "pending": state.worker.pending},
         "config": {
             "sampling": PipelineConfig.web().sampling_label,
             "max_video_seconds": settings.max_video_seconds,
@@ -76,6 +77,11 @@ async def health(request: Request):
     return JSONResponse(body, status_code=200 if status == "ready" else 503)
 
 
+def busy(request: Request, worker):
+    logger.warning("ia.queue.full in_system=%d", worker.in_system)
+    return fail(request, "IA_BUSY", MESSAGES["IA_BUSY"], {"queue_size": worker.queue_size})
+
+
 @router.post("/detect")
 async def detect(
     request: Request,
@@ -87,17 +93,29 @@ async def detect(
     state = request.app.state
     if state.models_status != "ready":
         return fail(request, "IA_MODEL_NOT_READY", MESSAGES["IA_MODEL_NOT_READY"])
+    worker = state.worker
+    if not worker.try_enter():  # el middleware ya lo miró antes de leer el cuerpo; aquí se reserva el lugar
+        return busy(request, worker)
     t0 = time.monotonic()
     folder = _request_dir(state.settings.tmp_dir)
+    handed_over = False
     try:
         path = await _save_upload(file, file_name, folder)
         config = PipelineConfig.web()
-        result = await run_in_threadpool(classify_file, path, file_name, config, state.models)
+        models = state.models
+
+        def job(should_stop):
+            return classify_file(path, file_name, config, models, should_stop=should_stop)
+
+        handed_over = True  # desde aquí, el hilo libera el lugar y borra la carpeta
+        result = await worker.submit(job, cleanup=lambda: shutil.rmtree(folder, ignore_errors=True))
         data = to_detect_result(
             result, file_name, state.model_names["classifier"], processing_ms=int((time.monotonic() - t0) * 1000)
         )
     finally:
-        shutil.rmtree(folder, ignore_errors=True)
+        if not handed_over:
+            worker.leave()
+            shutil.rmtree(folder, ignore_errors=True)
     logger.info(
         "ia.detect.succeeded file=%s category=%s ms=%d",
         file_name,

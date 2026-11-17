@@ -33,6 +33,9 @@ class Settings:
     max_video_seconds: float = field(default_factory=lambda: _env_float("MAX_VIDEO_SECONDS", 15.0))
     max_file_mb: float = field(default_factory=lambda: _env_float("MAX_FILE_MB", 300))  # HU-IA-32
     inference_queue_size: int = field(default_factory=lambda: int(os.getenv("INFERENCE_QUEUE_SIZE", "2")))  # HU-IA-04
+    process_timeout_seconds: float = field(
+        default_factory=lambda: _env_float("PROCESS_TIMEOUT_SECONDS", 150)
+    )  # HU-IA-04
 
     def __post_init__(self) -> None:
         if not self.ai_api_key and self.environment != "production":
