@@ -31,6 +31,12 @@ class Settings:
     models_dir: Path = field(default_factory=lambda: Path(os.getenv("MODELS_DIR") or _default_models_dir()))
     tmp_dir: Path = field(default_factory=lambda: Path(os.getenv("TMP_DIR") or tempfile.gettempdir()))
     max_video_seconds: float = field(default_factory=lambda: _env_float("MAX_VIDEO_SECONDS", 15.0))
+    # HU-IA-19: el catálogo completo de SpeciesNet (tools/build_catalog.py), junto al código.
+    catalog_path: Path = field(
+        default_factory=lambda: Path(
+            os.getenv("CATALOG_PATH") or Path(__file__).resolve().parents[1] / "catalog" / "speciesnet_catalog.json"
+        )
+    )
     max_file_mb: float = field(default_factory=lambda: _env_float("MAX_FILE_MB", 300))  # HU-IA-32
     max_image_pixels: int = field(default_factory=lambda: int(os.getenv("MAX_IMAGE_PIXELS", "100000000")))  # HU-IA-32
 

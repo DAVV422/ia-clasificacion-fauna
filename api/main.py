@@ -92,6 +92,7 @@ def create_app(settings: Optional[Settings] = None, models: Any = None) -> FastA
     app.state.model_names = models.describe() if models is not None else {"detector": "MDv5a", "classifier": "?"}
     app.state.models_status = "ready" if models is not None else "loading"
     app.state.worker = InferenceWorker(settings.inference_queue_size, settings.process_timeout_seconds)
+    app.state.catalog = None  # HU-IA-19: se lee una vez, en la primera petición a /catalog
 
     @app.middleware("http")
     async def request_context(request: Request, call_next):

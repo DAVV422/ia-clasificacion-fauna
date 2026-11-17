@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from wwm_pipeline import formats
 from wwm_pipeline.config import PipelineConfig
@@ -113,6 +113,40 @@ async def health(request: Request):
         },
     }
     return JSONResponse(body, status_code=200 if status == "ready" else 503)
+
+
+# ---------------------------------------------------------------------------
+# GET /catalog (HU-IA-19, IA §4): con API key (el middleware); ETag = sha256 del catálogo
+# ---------------------------------------------------------------------------
+def load_catalog(path: Path) -> Optional[dict]:
+    import json
+
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        logger.exception("ia.catalog.missing path=%s", path)
+        return None
+
+
+@router.get("/catalog")
+async def catalog(request: Request):
+    state = request.app.state
+    if state.catalog is None:
+        state.catalog = load_catalog(state.settings.catalog_path)
+        if state.catalog is not None and state.catalog.get("classifier") != state.model_names.get("classifier"):
+            logger.warning(
+                "ia.catalog.mismatch catalog=%s model=%s",
+                state.catalog.get("classifier"),
+                state.model_names.get("classifier"),
+            )
+    if state.catalog is None:
+        return fail(request, "IA_INTERNAL", "No está el catálogo de especies.")
+    etag = f'"{state.catalog["sha256"]}"'
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag})
+    response = ok(request, state.catalog, message="Catálogo")
+    response.headers["ETag"] = etag
+    return response
 
 
 def busy(request: Request, worker):

@@ -17,6 +17,7 @@ licencia que prefiera: AGPL-3.0 o MIT.
   wwm_pipeline/capture_parse.py
   wwm_pipeline/formats.py     (extensiones y firmas binarias, HU-IA-32)
   schemas/                 (todos los .json)
+  catalog/                 (speciesnet_catalog.json, HU-IA-19)
   tests/fixtures/          (todo su contenido)
   fake/                    (el servicio ia-fake)
 
