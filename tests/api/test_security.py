@@ -92,5 +92,5 @@ def test_key_never_logged(app_and_files, caplog):
     with TestClient(app, raise_server_exceptions=False) as client:
         post(client, sint, {"X-API-Key": "clave-equivocada-123"})
         post(client, sint, {"X-API-Key": KEY})
-    assert "ia.auth.rejected" in caplog.text
+    assert any(getattr(r, "event", None) == "ia.auth.rejected" for r in caplog.records)
     assert KEY not in caplog.text and "clave-equivocada-123" not in caplog.text

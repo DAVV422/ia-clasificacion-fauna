@@ -22,6 +22,8 @@ from fastapi import FastAPI, Request
 from .envelope import fail
 from .errors import MESSAGES, install_handlers
 from .inference import InferenceWorker
+from .logs import configure as configure_logs
+from .logs import flow_var, log_event, request_id_var
 from .routes import busy, router
 from .security import check_settings, is_protected, valid_key
 from .settings import Settings
@@ -53,10 +55,11 @@ def _load_models(app: FastAPI) -> None:
     settings: Settings = app.state.settings
     if not settings.models_present():
         app.state.models_status = "missing"
-        logger.error(
-            "ia.models.missing: faltan los modelos en %s (md_v5a.0.0.pt y speciesnet-4.0.2a/). "
-            "Prepáralos con tools/fetch_models.py",
-            settings.models_dir,
+        log_event(
+            "ia.models.missing",
+            "Faltan los modelos (md_v5a.0.0.pt y speciesnet-4.0.2a/). Prepáralos con tools/fetch_models.py",
+            logging.ERROR,
+            models_dir=str(settings.models_dir),
         )
         return
     try:
@@ -68,21 +71,23 @@ def _load_models(app: FastAPI) -> None:
         app.state.models = registry
         app.state.model_names = registry.describe()
         app.state.models_status = "ready"
-        logger.info("ia.models.ready %s", app.state.model_names)
+        log_event("ia.models.ready", "Modelos listos", **app.state.model_names)
     except Exception:
         app.state.models_status = "error"
-        logger.exception("ia.models.failed")
+        log_event("ia.models.failed", "No se pudieron cargar los modelos", logging.ERROR, exc_info=True)
 
 
-def create_app(settings: Optional[Settings] = None, models: Any = None) -> FastAPI:
+def create_app(settings: Optional[Settings] = None, models: Any = None, configure_logging: bool = False) -> FastAPI:
     settings = settings or Settings()
+    if configure_logging:  # solo la app de uvicorn; los tests no tocan el logging global
+        configure_logs(settings.environment, settings.app_version)
     check_settings(settings.environment, settings.ai_api_key)  # HU-IA-30: en producción, sin clave no arranca
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if models is None:
             _configure_env(settings)
-            logger.info("ia.models.loading desde %s", settings.models_dir)
+            log_event("ia.models.loading", "Cargando los modelos", models_dir=str(settings.models_dir))
             threading.Thread(target=_load_models, args=(app,), daemon=True, name="ModelLoader").start()
         yield
 
@@ -98,9 +103,18 @@ def create_app(settings: Optional[Settings] = None, models: Any = None) -> FastA
     async def request_context(request: Request, call_next):
         request.state.request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
         request.state.flow = request.headers.get("X-Flow")
+        # HU-IA-42: para los logs de esta petición (y del hilo de inferencia, que copia el contexto).
+        tokens = (request_id_var.set(request.state.request_id), flow_var.set(request.state.flow))
+        try:
+            return await _handle(request, call_next)
+        finally:
+            request_id_var.reset(tokens[0])
+            flow_var.reset(tokens[1])
+
+    async def _handle(request: Request, call_next):
         # HU-IA-30: antes de leer el cuerpo. Nunca se registra la clave (ni la recibida ni la configurada).
         if is_protected(request.url.path) and not valid_key(request.headers.get("X-API-Key", ""), settings.ai_api_key):
-            logger.warning("ia.auth.rejected path=%s request_id=%s", request.url.path, request.state.request_id)
+            log_event("ia.auth.rejected", "API key ausente o incorrecta", logging.WARNING, path=request.url.path)
             response = fail(request, "IA_UNAUTHORIZED", MESSAGES["IA_UNAUTHORIZED"])
             response.headers["X-Request-ID"] = request.state.request_id
             return response
@@ -122,7 +136,17 @@ def create_app(settings: Optional[Settings] = None, models: Any = None) -> FastA
             response = busy(request, app.state.worker)
             response.headers["X-Request-ID"] = request.state.request_id
             return response
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception as exc:  # aquí, y no en el handler global: todavía están el request_id y el flow (HU-IA-42)
+            log_event(
+                "ia.detect.failed",
+                f"Excepción no controlada en {request.method} {request.url.path}",
+                logging.ERROR,
+                exc_info=exc,
+                error_code="IA_INTERNAL",
+            )
+            response = fail(request, "IA_INTERNAL", MESSAGES["IA_INTERNAL"])
         response.headers["X-Request-ID"] = request.state.request_id
         return response
 
@@ -131,4 +155,4 @@ def create_app(settings: Optional[Settings] = None, models: Any = None) -> FastA
     return app
 
 
-app = create_app()
+app = create_app(configure_logging=True)

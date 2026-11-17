@@ -27,6 +27,7 @@ from wwm_pipeline.response import to_detect_result
 
 from .envelope import fail, ok
 from .errors import MESSAGES
+from .logs import log_event
 
 logger = logging.getLogger("ia")
 router = APIRouter(prefix="/api/v1")
@@ -124,7 +125,7 @@ def load_catalog(path: Path) -> Optional[dict]:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        logger.exception("ia.catalog.missing path=%s", path)
+        log_event("ia.catalog.missing", "No está el catálogo", logging.ERROR, exc_info=True, path=str(path))
         return None
 
 
@@ -134,10 +135,12 @@ async def catalog(request: Request):
     if state.catalog is None:
         state.catalog = load_catalog(state.settings.catalog_path)
         if state.catalog is not None and state.catalog.get("classifier") != state.model_names.get("classifier"):
-            logger.warning(
-                "ia.catalog.mismatch catalog=%s model=%s",
-                state.catalog.get("classifier"),
-                state.model_names.get("classifier"),
+            log_event(
+                "ia.catalog.mismatch",
+                "El catálogo es de otro clasificador",
+                logging.WARNING,
+                catalog=state.catalog.get("classifier"),
+                model=state.model_names.get("classifier"),
             )
     if state.catalog is None:
         return fail(request, "IA_INTERNAL", "No está el catálogo de especies.")
@@ -149,8 +152,29 @@ async def catalog(request: Request):
     return response
 
 
+class StageTimer:
+    """``on_progress`` del pipeline → un evento ``pipeline.<etapa>.completed`` por etapa, con su duración."""
+
+    def __init__(self):
+        self.stage = None
+        self.started = 0.0
+        self.total = 0
+
+    def __call__(self, stage: str, done: int, total: int) -> None:
+        if stage != self.stage:
+            self.finish()
+            self.stage, self.started = stage, time.monotonic()
+        self.total = total
+
+    def finish(self) -> None:
+        if self.stage is not None:
+            ms = int((time.monotonic() - self.started) * 1000)
+            log_event(f"pipeline.{self.stage}.completed", self.stage, duration_ms=ms, count=self.total)
+            self.stage = None
+
+
 def busy(request: Request, worker):
-    logger.warning("ia.queue.full in_system=%d", worker.in_system)
+    log_event("ia.queue.full", "La cola de inferencia está llena", logging.WARNING, in_system=worker.in_system)
     return fail(request, "IA_BUSY", MESSAGES["IA_BUSY"], {"queue_size": worker.queue_size})
 
 
@@ -169,6 +193,7 @@ async def detect(
     if not worker.try_enter():  # el middleware ya lo miró antes de leer el cuerpo; aquí se reserva el lugar
         return busy(request, worker)
     t0 = time.monotonic()
+    log_event("ia.detect.received", "Archivo recibido", file_name=file_name)
     folder = _request_dir(state.settings.tmp_dir)
     handed_over = False
     try:
@@ -178,7 +203,17 @@ async def detect(
         models = state.models
 
         def job(should_stop):
-            return classify_file(path, file_name, config, models, should_stop=should_stop)
+            stages = StageTimer()
+            result = classify_file(path, file_name, config, models, on_progress=stages, should_stop=should_stop)
+            stages.finish()
+            log_event(
+                "pipeline.aggregation.completed",
+                "Votación",
+                category=result.decision.category,
+                votes=len(result.vote.votes) if result.vote else 0,
+                frames_sampled=result.frames_sampled,
+            )
+            return result
 
         handed_over = True  # desde aquí, el hilo libera el lugar y borra la carpeta
         result = await worker.submit(job, cleanup=lambda: shutil.rmtree(folder, ignore_errors=True))
@@ -189,10 +224,12 @@ async def detect(
         if not handed_over:
             worker.leave()
             shutil.rmtree(folder, ignore_errors=True)
-    logger.info(
-        "ia.detect.succeeded file=%s category=%s ms=%d",
-        file_name,
-        data.result.category.value,
-        data.analysis.processing_ms,
+    log_event(
+        "ia.detect.succeeded",
+        "Archivo clasificado",
+        file_name=file_name,
+        category=data.result.category.value,
+        rank=data.result.taxonomy.rank.value if data.result.taxonomy else None,
+        duration_ms=data.analysis.processing_ms,
     )
     return ok(request, data.model_dump(mode="json", by_alias=True))

@@ -111,7 +111,9 @@ class InferenceWorker:
         except asyncio.TimeoutError:
             job.stop.set()  # classify_file corta en el próximo frame; el hilo queda libre
             elapsed_ms = int((time.monotonic() - t0) * 1000)
-            logger.warning("ia.detect.timeout elapsed_ms=%d", elapsed_ms)
+            from .logs import log_event
+
+            log_event("ia.detect.timeout", "Superó el tiempo máximo", logging.WARNING, duration_ms=elapsed_ms)
             raise PipelineError("IA_PROCESSING_TIMEOUT", "superó el tiempo máximo", elapsed_ms=elapsed_ms) from None
 
 

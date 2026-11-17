@@ -12,3 +12,6 @@ dist/
 **/__pycache__/
 eval/runs/
 !desktop/desktop.spec
+
+# HU-IA-42: los logs van a stdout (Docker); ningún .log al repo
+*.log

@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from wwm_pipeline.errors import PipelineError
 
 from .envelope import fail
+from .logs import log_event
 
 logger = logging.getLogger("ia")
 
@@ -26,8 +27,8 @@ MESSAGES = {
 
 def pipeline_error_response(request: Request, err: PipelineError):
     code = err.code if err.code in MESSAGES else "IA_INTERNAL"
-    if code == "IA_INTERNAL":
-        logger.error("Error interno del pipeline: %s", err.message)
+    level = logging.ERROR if code == "IA_INTERNAL" else logging.WARNING
+    log_event("ia.detect.failed", err.message, level, error_code=code)
     context = {k: v for k, v in getattr(err, "context", {}).items() if v is not None} or None
     return fail(request, code, MESSAGES[code], context)
 
@@ -50,5 +51,11 @@ def install_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unexpected(request: Request, exc: Exception):
-        logger.exception("Excepción no controlada en %s %s", request.method, request.url.path)
+        log_event(
+            "ia.detect.failed",
+            f"Excepción no controlada en {request.method} {request.url.path}",
+            logging.ERROR,
+            exc_info=exc,
+            error_code="IA_INTERNAL",
+        )
         return fail(request, "IA_INTERNAL", MESSAGES["IA_INTERNAL"])
