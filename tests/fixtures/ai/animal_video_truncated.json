@@ -72,6 +72,7 @@
         }
       ],
       "truncated_at_seconds": 15.0,
+      "low_evidence": false,
       "processing_ms": 61840
     },
     "model": {

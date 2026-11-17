@@ -91,6 +91,7 @@ def test_detect_result_fields_match_contract():
         "frames_discarded",
         "votes",
         "truncated_at_seconds",
+        "low_evidence",  # HU-IA-13 (está en API_IA_BACK §2.2); los fixtures lo traen desde HU-IA-33
         "processing_ms",
     }
     assert set(data["model"]) == {"detector", "classifier", "sampling", "pipeline_version"}

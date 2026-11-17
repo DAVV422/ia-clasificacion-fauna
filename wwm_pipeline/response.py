@@ -68,7 +68,8 @@ def _analysis(result, vote) -> Analysis:
     return Analysis(
         frames_sampled=sampled,
         frames_with_animal=min(result.frames_with_animal, sampled),
-        frames_discarded=dict(result.frames_discarded or {}),
+        # Siempre las mismas claves (también en imágenes, que no descartan nada): HU-IA-33, paridad con ia-fake.
+        frames_discarded={"duplicate": 0, "blurry": 0, "cap": 0, **(result.frames_discarded or {})},
         votes=list(vote.votes),
         truncated_at_seconds=result.truncated_at_seconds,
         low_evidence=bool(vote.low_evidence),

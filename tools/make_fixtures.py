@@ -148,6 +148,7 @@ def analysis(sampled: int, with_animal: int, votes: list, ms: int, dup=0, blur=0
         "frames_discarded": {"duplicate": dup, "blurry": blur, "cap": cap},
         "votes": votes,
         "truncated_at_seconds": truncated,
+        "low_evidence": False,  # HU-IA-13: está en el contrato; la IA real siempre lo manda (paridad, HU-IA-33)
         "processing_ms": ms,
     }
 
