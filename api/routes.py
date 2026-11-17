@@ -1,13 +1,14 @@
 """``POST /api/v1/detect`` (IA §2) — HU-IA-41.
 
-1. Guarda el archivo en un temporal (con su extensión: OpenCV la usa para elegir el decodificador).
+1. Guarda el archivo en una carpeta temporal **propia de la petición** (con su extensión: OpenCV la usa para elegir
+   el decodificador).
 2. Lo clasifica con ``PipelineConfig.web()`` en un hilo (no bloquea el *event loop*; la cola de verdad es HU-IA-04).
 3. Arma ``DetectResult`` (``wwm_pipeline.response``), validado contra el contrato, y responde la envoltura.
-4. Borra el temporal en un ``finally``.
+4. Borra esa carpeta entera en un ``finally``, también si hubo error (HU-IA-05: la IA no guarda nada, IA §1).
 """
 
 import logging
-import os
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -28,14 +29,18 @@ router = APIRouter(prefix="/api/v1")
 CHUNK = 1024 * 1024
 
 
-async def _save_upload(file: UploadFile, file_name: str, tmp_dir: Path) -> Path:
-    suffix = Path(file_name).suffix.lower()
+def _request_dir(tmp_dir: Path) -> Path:
     tmp_dir.mkdir(parents=True, exist_ok=True)
-    fd, name = tempfile.mkstemp(prefix="ia_", suffix=suffix, dir=str(tmp_dir))
-    with os.fdopen(fd, "wb") as out:
+    return Path(tempfile.mkdtemp(prefix="ia_", dir=str(tmp_dir)))
+
+
+async def _save_upload(file: UploadFile, file_name: str, folder: Path) -> Path:
+    # El nombre del usuario no se usa como ruta (podría traer "..\"): solo su extensión.
+    path = folder / f"upload{Path(file_name).suffix.lower()}"
+    with open(path, "wb") as out:
         while chunk := await file.read(CHUNK):
             out.write(chunk)
-    return Path(name)
+    return path
 
 
 @router.post("/detect")
@@ -50,15 +55,16 @@ async def detect(
     if state.models_status != "ready":
         return fail(request, "IA_MODEL_NOT_READY", MESSAGES["IA_MODEL_NOT_READY"])
     t0 = time.monotonic()
-    path = await _save_upload(file, file_name, state.settings.tmp_dir)
+    folder = _request_dir(state.settings.tmp_dir)
     try:
+        path = await _save_upload(file, file_name, folder)
         config = PipelineConfig.web()
         result = await run_in_threadpool(classify_file, path, file_name, config, state.models)
         data = to_detect_result(
             result, file_name, state.model_names["classifier"], processing_ms=int((time.monotonic() - t0) * 1000)
         )
     finally:
-        path.unlink(missing_ok=True)
+        shutil.rmtree(folder, ignore_errors=True)
     logger.info(
         "ia.detect.succeeded file=%s category=%s ms=%d",
         file_name,
