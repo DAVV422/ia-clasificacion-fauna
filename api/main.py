@@ -4,6 +4,7 @@
   ``speciesnet-4.0.2a/``, sin ``torch.hub`` remoto ni Kaggle (HU-DS-11). Mientras cargan, ``/detect`` responde
   ``503 IA_MODEL_NOT_READY``. **Nunca descarga nada.**
 - Correlación (IA §1): ``X-Request-ID`` (o uno nuevo) y ``X-Flow`` van a ``meta`` y vuelven en la respuesta.
+- API key (HU-IA-30): ``X-API-Key`` en todo ``/api/v1/*`` salvo ``/health``, verificada antes de leer el cuerpo.
 - Sin CORS: la IA es interna (IA §1, IA-31).
 
 ``create_app(settings, models)``: con ``models`` inyectado (``FakeModels`` en los tests) no carga nada.
@@ -18,8 +19,10 @@ from typing import Any, Optional
 
 from fastapi import FastAPI, Request
 
-from .errors import install_handlers
+from .envelope import fail
+from .errors import MESSAGES, install_handlers
 from .routes import router
+from .security import check_settings, is_protected, valid_key
 from .settings import Settings
 
 logger = logging.getLogger("ia")
@@ -61,6 +64,7 @@ def _load_models(app: FastAPI) -> None:
 
 def create_app(settings: Optional[Settings] = None, models: Any = None) -> FastAPI:
     settings = settings or Settings()
+    check_settings(settings.environment, settings.ai_api_key)  # HU-IA-30: en producción, sin clave no arranca
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -80,6 +84,12 @@ def create_app(settings: Optional[Settings] = None, models: Any = None) -> FastA
     async def request_context(request: Request, call_next):
         request.state.request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
         request.state.flow = request.headers.get("X-Flow")
+        # HU-IA-30: antes de leer el cuerpo. Nunca se registra la clave (ni la recibida ni la configurada).
+        if is_protected(request.url.path) and not valid_key(request.headers.get("X-API-Key", ""), settings.ai_api_key):
+            logger.warning("ia.auth.rejected path=%s request_id=%s", request.url.path, request.state.request_id)
+            response = fail(request, "IA_UNAUTHORIZED", MESSAGES["IA_UNAUTHORIZED"])
+            response.headers["X-Request-ID"] = request.state.request_id
+            return response
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
         return response

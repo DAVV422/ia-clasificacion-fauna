@@ -10,6 +10,8 @@ from wwm_pipeline.contract import ApiEnvelope, DetectResult
 from wwm_pipeline.errors import PipelineError
 
 pytest.importorskip("cv2")
+KEY = "clave-de-prueba"
+AUTH = {"X-API-Key": KEY}
 
 
 @pytest.fixture(scope="module")
@@ -21,8 +23,8 @@ def sint(tmp_path_factory):
 
 @pytest.fixture
 def client(tmp_path):
-    settings = Settings(models_dir=tmp_path / "models", tmp_dir=tmp_path / "tmp")
-    with TestClient(create_app(settings, models=SetModels()), raise_server_exceptions=False) as c:
+    settings = Settings(models_dir=tmp_path / "models", tmp_dir=tmp_path / "tmp", ai_api_key=KEY)
+    with TestClient(create_app(settings, models=SetModels()), raise_server_exceptions=False, headers=AUTH) as c:
         yield c
 
 
@@ -133,8 +135,8 @@ def test_not_ready_while_loading(tmp_path, sint, monkeypatch):
     import api.main as main
 
     monkeypatch.setattr(main, "_load_models", lambda app: None)  # se queda "cargando"
-    settings = Settings(models_dir=tmp_path / "models", tmp_dir=tmp_path / "tmp")
-    with TestClient(create_app(settings), raise_server_exceptions=False) as c:
+    settings = Settings(models_dir=tmp_path / "models", tmp_dir=tmp_path / "tmp", ai_api_key=KEY)
+    with TestClient(create_app(settings), raise_server_exceptions=False, headers=AUTH) as c:
         r = post(c, sint / "especie_a.mp4")
     assert r.status_code == 503 and r.json()["error"]["code"] == "IA_MODEL_NOT_READY"
 

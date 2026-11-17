@@ -25,10 +25,18 @@ def _env_float(name: str, default: float) -> float:
 @dataclass
 class Settings:
     environment: str = field(default_factory=lambda: os.getenv("ENVIRONMENT", "development"))
+    # E2-D5: AI_API_KEY, la misma variable que ia-fake y el back. En desarrollo, "dev-key" si no se define.
+    ai_api_key: str = field(default_factory=lambda: os.getenv("AI_API_KEY", ""))
     app_version: str = field(default_factory=lambda: os.getenv("APP_VERSION", "dev"))
     models_dir: Path = field(default_factory=lambda: Path(os.getenv("MODELS_DIR") or _default_models_dir()))
     tmp_dir: Path = field(default_factory=lambda: Path(os.getenv("TMP_DIR") or tempfile.gettempdir()))
     max_video_seconds: float = field(default_factory=lambda: _env_float("MAX_VIDEO_SECONDS", 15.0))
+
+    def __post_init__(self) -> None:
+        if not self.ai_api_key and self.environment != "production":
+            from .security import DEV_KEY
+
+            self.ai_api_key = DEV_KEY
 
     @property
     def detector_path(self) -> Path:

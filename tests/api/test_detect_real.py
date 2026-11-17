@@ -33,8 +33,8 @@ def client():
     from api.main import create_app
     from api.settings import Settings
 
-    app = create_app(Settings(models_dir=MODELS))
-    with TestClient(app) as c:
+    app = create_app(Settings(models_dir=MODELS, ai_api_key="k"))
+    with TestClient(app, headers={"X-API-Key": "k"}) as c:
         deadline = time.monotonic() + 300
         while app.state.models_status == "loading":
             assert time.monotonic() < deadline, "los modelos no cargaron"

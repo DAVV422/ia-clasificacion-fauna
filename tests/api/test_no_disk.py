@@ -29,8 +29,8 @@ def setup(tmp_path):
     sint = tmp_path / "sint"
     write_f_set_sint(sint)
     tmp_dir = tmp_path / "tmp"
-    app = create_app(Settings(models_dir=tmp_path / "models", tmp_dir=tmp_dir), models=SetModels())
-    with TestClient(app, raise_server_exceptions=False) as client:
+    app = create_app(Settings(models_dir=tmp_path / "models", tmp_dir=tmp_dir, ai_api_key="k"), models=SetModels())
+    with TestClient(app, raise_server_exceptions=False, headers={"X-API-Key": "k"}) as client:
         yield client, sint, tmp_dir, tmp_path
 
 
