@@ -19,7 +19,9 @@ from typing import Optional
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
 
+from wwm_pipeline import formats
 from wwm_pipeline.config import PipelineConfig
+from wwm_pipeline.errors import PipelineError
 from wwm_pipeline.pipeline import classify_file
 from wwm_pipeline.response import to_detect_result
 
@@ -36,13 +38,49 @@ def _request_dir(tmp_dir: Path) -> Path:
     return Path(tempfile.mkdtemp(prefix="ia_", dir=str(tmp_dir)))
 
 
-async def _save_upload(file: UploadFile, file_name: str, folder: Path) -> Path:
-    # El nombre del usuario no se usa como ruta (podría traer "..\"): solo su extensión.
+MB = 1024 * 1024
+
+
+async def _save_upload(file: UploadFile, file_name: str, folder: Path, max_bytes: int) -> Path:
+    """Guarda el archivo comprobando, con el primer bloque, la extensión y la firma (HU-IA-32), y cortando al pasar
+    ``MAX_FILE_MB``. El nombre del usuario no se usa como ruta (podría traer "..\"): solo su extensión."""
     path = folder / f"upload{Path(file_name).suffix.lower()}"
+    total = 0
     with open(path, "wb") as out:
         while chunk := await file.read(CHUNK):
+            if total == 0:
+                ok, reason = formats.check(file_name, chunk[: formats.HEAD_BYTES])
+                if not ok:
+                    raise PipelineError(
+                        "IA_INVALID_FORMAT", reason, accepted=formats.ACCEPTED_EXTENSIONS, reason=reason
+                    )
+            total += len(chunk)
+            if total > max_bytes:
+                raise PipelineError(
+                    "IA_FILE_TOO_LARGE",
+                    "supera MAX_FILE_MB",
+                    max_mb=round(max_bytes / MB, 1),
+                    size_mb=round(total / MB, 1),
+                )
             out.write(chunk)
+    if total == 0:
+        raise PipelineError("IA_INVALID_FORMAT", "archivo vacío", accepted=formats.ACCEPTED_EXTENSIONS, reason="vacío")
     return path
+
+
+def _check_pixels(path: Path, max_pixels: int) -> None:
+    """Una imagen enorme agota la memoria al decodificarla ("bomba de descompresión"): se mira solo la cabecera."""
+    if path.suffix.lower() not in formats.IMAGE_EXTENSIONS:
+        return
+    try:
+        from PIL import Image
+
+        with Image.open(path) as image:
+            width, height = image.size
+    except Exception:  # noqa: BLE001 - si Pillow no la abre, que decida el pipeline (IA_DECODE_FAILED)
+        return
+    if width * height > max_pixels:
+        raise PipelineError("IA_DECODE_FAILED", "demasiados píxeles", reason="too_many_pixels", pixels=width * height)
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +138,8 @@ async def detect(
     folder = _request_dir(state.settings.tmp_dir)
     handed_over = False
     try:
-        path = await _save_upload(file, file_name, folder)
+        path = await _save_upload(file, file_name, folder, state.settings.max_file_bytes)
+        _check_pixels(path, state.settings.max_image_pixels)
         config = PipelineConfig.web()
         models = state.models
 

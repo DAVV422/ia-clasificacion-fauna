@@ -32,6 +32,12 @@ class Settings:
     tmp_dir: Path = field(default_factory=lambda: Path(os.getenv("TMP_DIR") or tempfile.gettempdir()))
     max_video_seconds: float = field(default_factory=lambda: _env_float("MAX_VIDEO_SECONDS", 15.0))
     max_file_mb: float = field(default_factory=lambda: _env_float("MAX_FILE_MB", 300))  # HU-IA-32
+    max_image_pixels: int = field(default_factory=lambda: int(os.getenv("MAX_IMAGE_PIXELS", "100000000")))  # HU-IA-32
+
+    @property
+    def max_file_bytes(self) -> int:
+        return int(self.max_file_mb * 1024 * 1024)
+
     inference_queue_size: int = field(default_factory=lambda: int(os.getenv("INFERENCE_QUEUE_SIZE", "2")))  # HU-IA-04
     process_timeout_seconds: float = field(
         default_factory=lambda: _env_float("PROCESS_TIMEOUT_SECONDS", 150)

@@ -103,8 +103,21 @@ def create_app(settings: Optional[Settings] = None, models: Any = None) -> FastA
             response = fail(request, "IA_UNAUTHORIZED", MESSAGES["IA_UNAUTHORIZED"])
             response.headers["X-Request-ID"] = request.state.request_id
             return response
+        is_detect = request.method == "POST" and request.url.path.rstrip("/") == "/api/v1/detect"
+        # HU-IA-32: un cuerpo anunciado más grande que MAX_FILE_MB (+1 MB de margen del multipart), sin recibirlo.
+        declared = request.headers.get("content-length", "")
+        if is_detect and declared.isdigit() and int(declared) > settings.max_file_bytes + 1024 * 1024:
+            mb = 1024 * 1024
+            response = fail(
+                request,
+                "IA_FILE_TOO_LARGE",
+                MESSAGES["IA_FILE_TOO_LARGE"],
+                {"max_mb": round(settings.max_file_bytes / mb, 1), "size_mb": round(int(declared) / mb, 1)},
+            )
+            response.headers["X-Request-ID"] = request.state.request_id
+            return response
         # HU-IA-04: con la cola llena, IA_BUSY antes de recibir el archivo.
-        if request.method == "POST" and request.url.path.rstrip("/") == "/api/v1/detect" and app.state.worker.is_full():
+        if is_detect and app.state.worker.is_full():
             response = busy(request, app.state.worker)
             response.headers["X-Request-ID"] = request.state.request_id
             return response

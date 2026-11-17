@@ -16,8 +16,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional
 
-IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff"})
-VIDEO_EXTENSIONS = frozenset({".mp4", ".avi", ".mov", ".mkv", ".wmv", ".flv", ".webm"})
+# Las extensiones que el pipeline lee hoy viven en formats.py (MIT, sin dependencias: lo puede copiar el back).
+from .formats import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS  # noqa: E402,F401
 
 
 @dataclass(frozen=True)
