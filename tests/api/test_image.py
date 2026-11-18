@@ -2,7 +2,7 @@
 
 Sin Docker: se revisa que lo que copia el Dockerfile coincida con la lista blanca del .dockerignore y que la API
 arranque **solo** con esos archivos (si falta un módulo, la imagen se rompería en el servidor). La imagen real se
-construye y prueba en el CI (job ``ia-image``).
+prueba a mano con Docker local (sin CI, decisión de Diego del 17/11/2026; pasos en la spec de HU-IA-06 §11).
 """
 
 import os
