@@ -1,7 +1,7 @@
 """Compatibilidad: ``WildlifeDetector`` delega en ``wwm_pipeline`` (HU-IA-40).
 
 La lógica de detección y clasificación ya no vive aquí: está en ``wwm_pipeline`` (detection,
-classification, pipeline). Esta clase solo mantiene la interfaz que usan ``app/main.py`` y
+classification, pipeline). Esta clase solo mantiene la interfaz que usaban la API del prototipo (``app/main.py``, borrada en HU-IA-06) y
 ``desktop_app.py`` (``load_model``, ``model``, ``classifier``, ``device``) y expone ``models``
 (``ModelRegistry``) para ``classify_file``.
 

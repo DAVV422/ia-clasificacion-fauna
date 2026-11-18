@@ -15,3 +15,6 @@ eval/runs/
 
 # HU-IA-42: los logs van a stdout (Docker); ningún .log al repo
 *.log
+
+# Recortes que escribía la API del prototipo (app/main.py, borrada en HU-IA-06)
+/detections/

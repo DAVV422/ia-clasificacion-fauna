@@ -1,0 +1,14 @@
+# ia-fake (HU-IA-22): lo que copia fake/Dockerfile. BuildKit usa este archivo en lugar del .dockerignore de la raíz
+# cuando se arma con "docker build -f fake/Dockerfile ." (el de la raíz es la lista de la IA real, HU-IA-06).
+*
+!fake/requirements.txt
+!fake/__init__.py
+!fake/app.py
+!fake/scenarios.py
+!wwm_pipeline/__init__.py
+!wwm_pipeline/enums.py
+!wwm_pipeline/contract.py
+!wwm_pipeline/catalog_schema.py
+!wwm_pipeline/capture_parse.py
+!tests/fixtures/ai/
+!tests/fixtures/catalog/

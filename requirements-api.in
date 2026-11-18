@@ -1,0 +1,8 @@
+# Dependencias de la API de la IA en Docker (HU-IA-06): las del pipeline (las mismas que el escritorio) + el servidor.
+# Regenerar el lock (parte del lock del escritorio, así las versiones compartidas son las mismas):
+#   cp requirements-desktop.txt requirements-api.txt
+#   pip-compile --allow-unsafe --generate-hashes --strip-extras --output-file=requirements-api.txt requirements-api.in
+-r requirements-desktop.in
+fastapi==0.115.14
+uvicorn==0.32.1
+python-multipart==0.0.33

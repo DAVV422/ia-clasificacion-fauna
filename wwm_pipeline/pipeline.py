@@ -1,6 +1,6 @@
 """Punto de entrada único de la clasificación: ``classify_file`` (IA-02).
 
-Lo usan la API (``app/main.py``) y la app de escritorio. No conoce FastAPI ni Tkinter.
+Lo usan la API (``api/``, HU-IA-41) y la app de escritorio. No conoce FastAPI ni Tkinter.
 
 - Presets ``legacy_*``: reproducen exactamente el prototipo v1 (verificado contra
   ``eval/legacy/expected.json``). Ese camino no se toca.

@@ -34,7 +34,7 @@ def legacy_frames(frame_count: int, mode: str = "desktop") -> List[int]:
     """Índices de los frames que analiza el prototipo.
 
     - ``desktop`` (``desktop_app._process_file``): ``min(3, max(1, frame_count))`` frames.
-    - ``api`` (``app/main.py``): siempre 3 frames si hay frames; si no, el frame 0.
+    - ``api`` (``app/main.py``, borrada en HU-IA-06): siempre 3 frames si hay frames; si no, el frame 0.
     """
     if mode == "api":
         if frame_count <= 0:

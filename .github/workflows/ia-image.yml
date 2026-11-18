@@ -1,0 +1,104 @@
+# HU-IA-06 · Imagen de la IA de la web: build, modelos en un volumen, arranque SIN red y una detección real.
+name: ia-image
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - requirements-api.txt
+      - api/**
+      - wwm_pipeline/**
+      - third_party/**
+      - catalog/**
+      - desktop/model_store.py
+      - desktop/models/model_manifest.json
+      - tools/fetch_models.py
+      - .github/workflows/ia-image.yml
+  pull_request:
+    paths:
+      - Dockerfile
+      - requirements-api.txt
+      - api/**
+      - wwm_pipeline/**
+  workflow_dispatch:
+
+concurrency:
+  group: ia-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      AI_API_KEY: ci-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "MODELS=$RUNNER_TEMP/models" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: docker build -t wwm-ia:ci .
+
+      - name: Modelos del release (con caché)
+        id: models
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/models
+          key: ia-models-${{ hashFiles('desktop/models/model_manifest.json') }}
+
+      - name: fetch_models.py dentro de la imagen
+        run: |
+          mkdir -p "$MODELS" && chmod 777 "$MODELS"
+          docker run --rm -v "$MODELS:/models" wwm-ia:ci python tools/fetch_models.py
+          # Segunda corrida: todo verificado, nada se vuelve a bajar.
+          docker run --rm -v "$MODELS:/models" wwm-ia:ci python tools/fetch_models.py | tee second.txt
+          grep -q "descargados: ninguno" second.txt
+
+      - name: Sin AI_API_KEY en producción no arranca
+        run: |
+          # create_app() corre al importar api.main: con ENVIRONMENT=production y sin clave lanza MissingApiKey.
+          if docker run --rm --network none -v "$MODELS:/models" wwm-ia:ci python -c "import api.main" 2> err.txt; then
+            echo "arrancó sin AI_API_KEY" && exit 1
+          fi
+          grep -q MissingApiKey err.txt
+
+      - name: Arrancar sin red
+        run: |
+          docker run -d --name ia --network none -e AI_API_KEY -v "$MODELS:/models" wwm-ia:ci
+          for i in $(seq 1 60); do
+            state=$(docker inspect -f '{{.State.Health.Status}}' ia)
+            [ "$state" = healthy ] && break
+            [ "$(docker inspect -f '{{.State.Running}}' ia)" = true ] || { docker logs ia; exit 1; }
+            sleep 5
+          done
+          docker exec ia python -c "import json, urllib.request; h = json.load(urllib.request.urlopen('http://localhost:8001/api/v1/health')); print(h); assert h['status'] == 'ok' and h['models_loaded'], h"
+
+      - name: Detección real (imagen)
+        run: |
+          docker cp public/logo.jpeg ia:/tmp/ia/sample.jpeg
+          docker exec -i -e AI_API_KEY ia python - <<'PY'
+          import json, os, urllib.error, urllib.request, uuid
+          boundary = uuid.uuid4().hex
+          data = open("/tmp/ia/sample.jpeg", "rb").read()
+          body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"sample.jpeg\"\r\n"
+                  f"Content-Type: image/jpeg\r\n\r\n").encode() + data + f"\r\n--{boundary}--\r\n".encode()
+          req = urllib.request.Request("http://localhost:8001/api/v1/detect", data=body, method="POST", headers={
+              "Content-Type": f"multipart/form-data; boundary={boundary}", "X-API-Key": os.environ["AI_API_KEY"]})
+          resp = json.load(urllib.request.urlopen(req, timeout=170))
+          print(json.dumps(resp, indent=2)[:3000])
+          assert resp["status"] == "success", resp
+          assert resp["data"]["media_type"] == "image", resp
+          # Sin clave: 401.
+          try:
+              urllib.request.urlopen(urllib.request.Request(req.full_url, data=body, method="POST",
+                                     headers={"Content-Type": req.headers["Content-type"]}))
+              raise SystemExit("respondió sin clave")
+          except urllib.error.HTTPError as exc:
+              assert exc.code == 401, exc.code
+          PY
+
+      - name: Logs
+        if: always()
+        run: docker logs ia 2>&1 | tail -100 || true

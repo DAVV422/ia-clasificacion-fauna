@@ -1,6 +1,7 @@
 """Configuración de la API. Solo constantes: importar este módulo no crea nada en disco (HU-DS-04).
 
-Las carpetas de trabajo de la API las crea ``ensure_api_dirs()`` en el arranque (``app.main``).
+Lo usan ``app/detector.py`` y la herramienta de evaluación. ``ApiDirs``/``ensure_api_dirs()`` eran de la API del
+prototipo (``app/main.py``, borrada en HU-IA-06); la API nueva (``api/``) usa ``TMP_DIR`` y ``MODELS_DIR``.
 """
 
 import sys

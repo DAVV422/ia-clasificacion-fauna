@@ -1,248 +1,99 @@
-# WWF Wildlife Detection & Species Classification API (MegaDetector + SpeciesNet)
+# WWF Wildlife — IA de detección y clasificación (MegaDetector + SpeciesNet)
 
-Este es un backend de producción desarrollado con **FastAPI** que utiliza un pipeline de dos etapas para procesar imágenes y videos de cámaras trampa:
-1. **MegaDetector v5a (YOLOv5):** Detecta la presencia de animales (así como personas y vehículos) y extrae sus coordenadas.
-2. **SpeciesNet de Google (EfficientNetV2-M):** Cuando se detecta un `animal`, recorta su área y clasifica automáticamente la **especie exacta** (ej. `"Panthera onca"`, `"Odocoileus virginianus"`, etc.) de entre más de 2,000 categorías globales de la plataforma *Wildlife Insights*.
+Este repositorio tiene tres piezas que comparten el mismo pipeline (`wwm_pipeline/`):
 
-Cuando se detecta un animal, el backend recorta el área exacta de la imagen/frame y lo almacena localmente en carpetas organizadas por categoría: `detections/{categoria}/{imagen_uuid}.jpg`. Para videos, analiza cuadros clave (muestreo configurable) y reporta la marca de tiempo (segundos) exacta de su aparición junto con la especie y confianza.
+1. **API de la IA para la web** (`api/`, Épica 2): FastAPI interna que usa el back. Recibe una foto o un video y
+   devuelve las detecciones y la especie según el contrato `API_IA_BACK.md`.
+2. **App de escritorio** (`desktop/`): clasifica carpetas de cámaras trampa sin internet.
+3. **ia-fake** (`fake/`): servidor con respuestas fijas del mismo contrato, para desarrollar el back sin modelos.
 
----
+El pipeline usa dos modelos:
 
-## 🚀 Características
-
-- **Pipeline de Inferencia en 2 Etapas:**
-  - Inferencia rápida de MegaDetector v5a para localizar fauna (`animal`, `person`, `vehicle`).
-  - Clasificación de especies global con **SpeciesNet de Google** en los recortes de animales.
-- **Autodescarga Automática de Modelos:**
-  - Descarga los pesos del detector (`md_v5a.0.0.pt` - ~144MB).
-  - Descarga automáticamente el clasificador SpeciesNet desde **Kaggle Hub** (~200MB) en el primer arranque. **No requiere** credenciales ni cuentas API de Kaggle.
-- **Muestreo de Frames de Video (Fast-Inference):** Permite procesar videos de ~10 segundos de manera ágil (muestreo por defecto de 2 frames por segundo), evitando timeouts en HTTP.
-- **Recorte Automático y Guardado Local:** Almacena los recortes de las detecciones en `detections/{categoria}/{uuid}.jpg` para auditorías o integraciones.
-- **Servidor de Archivos Estáticos:** La carpeta de detecciones se expone en `/detections/` para que los recortes puedan previsualizarse directamente desde la web.
-- **Limpieza de Temporales Integrada:** Utiliza `BackgroundTasks` de FastAPI para garantizar la eliminación de archivos temporales de video del servidor tras procesarse la petición.
+- **MegaDetector v5a (YOLOv5):** encuentra animales, personas y vehículos.
+- **SpeciesNet de Google:** clasifica la especie de cada animal (taxonomía de *Wildlife Insights*).
 
 ---
 
-## 📁 Estructura del Proyecto
+## 📁 Estructura del proyecto
 
 ```
 ia-deteccion/
-├── app/
-│   ├── __init__.py
-│   ├── main.py            # Inicialización de FastAPI y endpoints
-│   ├── config.py          # Variables de entorno y configuraciones de thresholds/rutas
-│   ├── detector.py        # Inferencia conjunta con MegaDetector v5a y Google SpeciesNet
-│   ├── utils.py           # Descarga de pesos y gestión de archivos temporales
-│   └── schemas.py         # Modelos Pydantic para validación de datos
-├── models/                # Pesos de MegaDetector
-├── detections/            # Recortes organizados localmente por categoría (animal, person, vehicle)
-├── temp/                  # Almacenamiento temporal para videos en procesamiento
-├── requirements.txt       # Listado de dependencias de Python (incluye speciesnet)
-└── README.md              # Guía de uso y documentación (este archivo)
+├── api/                  # API de la IA (FastAPI): rutas, seguridad, cola de inferencia, logs
+├── wwm_pipeline/         # Pipeline compartido: muestreo, detección, clasificación, contrato
+├── desktop/              # App de escritorio (Tkinter)
+├── fake/                 # ia-fake (HU-IA-22)
+├── catalog/              # Catálogo de especies de SpeciesNet (GET /api/v1/catalog)
+├── schemas/              # JSON Schema del contrato
+├── tools/                # Scripts: fetch_models.py, build_catalog.py, make_fixtures.py, ...
+├── deploy/               # Ejemplo de compose con el back
+├── Dockerfile            # Imagen de la IA (HU-IA-06)
+├── docker-compose.yml    # La IA sola (desarrollo)
+├── requirements-api.txt  # Dependencias fijadas con hash (la imagen usa --require-hashes)
+└── tests/
 ```
 
 ---
 
-## 🐳 Levantar con Docker (Recomendado para Producción)
+## 🐳 API de la IA con Docker
 
-Esta es la forma más sencilla y reproducible de ejecutar la API. No necesitas instalar Python, PyTorch ni ninguna dependencia manualmente.
+Requisitos: Docker Engine o Docker Desktop y unos **6 GB de RAM** para el contenedor.
 
-### Requisitos Previos
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/macOS) o Docker Engine (Linux).
-- Al menos **6 GB de RAM** libres para el contenedor (MegaDetector + SpeciesNet en CPU).
-
----
-
-### Opción A: Docker Compose (Recomendado)
+La imagen **no trae los modelos ni los descarga al arrancar**. Se preparan una vez en el volumen `models`
+(~505 MB desde el release del repo, verificados por sha256):
 
 ```bash
-# 1. Construir la imagen (solo la primera vez o tras cambios en el código)
 docker compose build
-
-# 2. Levantar el servicio en segundo plano
+docker compose run --rm ia python tools/fetch_models.py   # una vez
 docker compose up -d
-
-# 3. Ver logs en tiempo real
-docker compose logs -f wwf-api
+curl http://localhost:8001/api/v1/health                   # "models": "ready" cuando terminó de cargar
 ```
 
-El servidor estará disponible en **`http://localhost:8000`**.
-
-> **Primera ejecución:** Al arrancar por primera vez, el contenedor descargará automáticamente los pesos de MegaDetector (~144 MB) y el clasificador SpeciesNet desde Kaggle Hub (~200 MB). Esto puede tardar **3-8 minutos** según la velocidad de tu conexión. Los pesos quedan guardados en la carpeta local `./models/` y no se vuelven a descargar.
-
-**Comandos útiles:**
+Prueba de una detección (la clave va en `X-API-Key`):
 
 ```bash
-# Detener el servicio
-docker compose down
-
-# Reiniciar el servicio
-docker compose restart wwf-api
-
-# Ver el estado del healthcheck
-docker compose ps
-
-# Reconstruir y levantar en un solo paso (útil tras cambiar el código)
-docker compose up -d --build
+curl -H "X-API-Key: dev-key" -F "file=@foto.jpg" http://localhost:8001/api/v1/detect
 ```
+
+Variables principales (todas tienen valor por defecto, salvo `AI_API_KEY` en producción):
+
+| Variable | Por defecto | Para qué |
+|---|---|---|
+| `AI_API_KEY` | `dev-key` solo en desarrollo | La misma clave que usa el back. En `production`, sin ella la IA no arranca |
+| `ENVIRONMENT` | `production` en la imagen | `development` permite la clave de desarrollo |
+| `MODELS_DIR` | `/models` | Volumen con los modelos |
+| `MAX_FILE_MB` | `300` | Tamaño máximo del archivo (413 si se pasa) |
+| `MAX_VIDEO_SECONDS` | `15` | Segundos de video que se analizan |
+| `INFERENCE_QUEUE_SIZE` | `2` | Pedidos en espera; con la cola llena responde `IA_BUSY` (503) |
+| `PROCESS_TIMEOUT_SECONDS` | `150` | Tiempo máximo por archivo. El back debe esperar más (180 s) |
+
+En producción la IA **no publica puertos**: solo la ve el back por la red interna de Docker. El ejemplo con el back
+está en [deploy/docker-compose.example.yml](deploy/docker-compose.example.yml).
+
+### Endpoints
+
+| Método y ruta | Clave | Qué hace |
+|---|---|---|
+| `GET /api/v1/health` | no | Estado de los modelos, cola y versiones (sin envoltura) |
+| `GET /api/v1/catalog` | sí | Catálogo de especies (`ETag`, responde 304 si no cambió) |
+| `POST /api/v1/detect` | sí | `multipart/form-data` con `file`: devuelve `DetectResult` dentro de la envoltura `{status, data, message, error, meta}` |
+
+Los errores tienen código `IA_*` (`IA_INVALID_FORMAT`, `IA_FILE_TOO_LARGE`, `IA_BUSY`, `IA_TIMEOUT`, ...).
+El contrato completo está en `docs-interno/plan-implementacion/contratos/API_IA_BACK.md`.
 
 ---
 
-### Opción B: Docker run (Manual)
+## 🛠️ API de la IA sin Docker (desarrollo)
 
-Si prefieres no usar docker-compose, puedes construir y ejecutar la imagen directamente:
-
-```bash
-# 1. Construir la imagen
-docker build -t wwf-wildlife-detection:latest .
-
-# 2. Crear carpetas locales para datos persistentes (si no existen)
-mkdir -p models detections temp
-
-# 3. Ejecutar el contenedor
-docker run -d \
-  --name wwf-wildlife-api \
-  -p 8000:8000 \
-  -v "$(pwd)/models:/app/models" \
-  -v "$(pwd)/detections:/app/detections" \
-  -v "$(pwd)/temp:/app/temp" \
-  -e TORCH_HOME=/app/models/torch_hub \
-  -e KAGGLE_CACHE_DIR=/app/models/kaggle_cache \
-  --memory="6g" \
-  --restart unless-stopped \
-  wwf-wildlife-detection:latest
-```
-
-> En PowerShell (Windows), reemplaza `$(pwd)` por `${PWD}`.
-
-**Ver logs:**
-```bash
-docker logs -f wwf-wildlife-api
-```
-
-**Detener y eliminar el contenedor:**
-```bash
-docker stop wwf-wildlife-api && docker rm wwf-wildlife-api
-```
-
----
-
-### Estructura de Archivos Docker
-
-```
-ia-deteccion/
-├── Dockerfile           # Build multi-stage (builder + runtime)
-├── docker-compose.yml   # Orquestación del servicio con volúmenes y healthcheck
-└── .dockerignore        # Excluye venv, modelos y caché del contexto de build
-```
-
----
-
-## 🛠️ Instalación Local (Sin Docker)
-
-### Requisitos Previos
-- **Python 3.10** (Recomendado)
-- **Git** instalado (requerido por PyTorch Hub).
-
-### Paso 1: Activar entorno virtual
-En Windows (PowerShell):
-```powershell
-.\venv\Scripts\Activate.ps1
-```
-En Linux / macOS:
-```bash
-source venv/bin/activate
-```
-
-### Paso 2: Instalar dependencias actualizadas
-```bash
-pip install -r requirements.txt
-```
-
----
-
-
-## ⚙️ Cómo Ejecutar el Servidor
-
-Inicia el servidor de desarrollo:
+Requiere **Python 3.11**.
 
 ```bash
-uvicorn app.main:app --reload
+python -m venv .venv
+.venv/Scripts/pip install --require-hashes -r requirements-api.txt   # Linux/macOS: .venv/bin/pip
+.venv/Scripts/python tools/fetch_models.py --dir models-api            # una vez
+MODELS_DIR=models-api .venv/Scripts/uvicorn api.main:app --port 8001 --workers 1
 ```
 
-Al iniciar por primera vez:
-1. Se descargará el modelo de MegaDetector en `/models` si no está presente.
-2. **Kaggle Hub** descargará automáticamente el modelo SpeciesNet (`pyTorch/v4.0.2a/1`). Verás barras de progreso en tu terminal.
-3. El servidor cargará ambos modelos en memoria ("Model Warmup").
-4. Estará disponible en: **`http://localhost:8000`**
-
----
-
-## 🧪 Pruebas de la API
-
-### 1. Documentación Interactiva (Swagger UI)
-Accede a la UI interactiva:
-👉 **[http://localhost:8000/docs](http://localhost:8000/docs)**
-
-Sube fotos o videos directamente desde el navegador en el endpoint `/api/v1/detect`.
-
-### 2. Prueba con cURL
-```bash
-curl -X POST "http://localhost:8000/api/v1/detect" \
-  -H "accept: application/json" \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@c:/ruta/de/tu/test_animal.mp4"
-```
-
----
-
-## 📄 Estructura de la Respuesta JSON (Ejemplo)
-
-La API retornará una respuesta organizada indicando la categoría, la especie clasificada por Google SpeciesNet y los recortes correspondientes:
-
-```json
-{
-  "filename": "camera_trap_10s.mp4",
-  "media_type": "video",
-  "duration_seconds": 10.15,
-  "total_detections_count": 2,
-  "categories_found": [
-    "animal"
-  ],
-  "results": [
-    {
-      "timestamp_seconds": 2.5,
-      "detections": [
-        {         
-          "confidence": 0.874,
-          "species": "Panthera onca",          
-          "crop_url": "/detections/animal/4c919a3b-2401-443b-85fa-71d5334de320.jpg"
-        }
-      ]
-    },
-    {
-      "timestamp_seconds": 3.0,
-      "detections": [
-        {          
-          "confidence": 0.912,
-          "species": "Panthera onca",
-          "crop_url": "/detections/animal/7f12a64c-83b2-4d2d-94bb-1845bb08a1c9.jpg"
-        }
-      ]
-    }
-  ]
-}
-```
-
----
-
-## 🛠️ Personalización (Parámetros)
-
-En `app/config.py` puedes ajustar variables de rendimiento clave:
-- **`CONFIDENCE_THRESHOLD = 0.30`**: Umbral de detección mínimo de MegaDetector.
-- **`SPECIESNET_CONFIDENCE_THRESHOLD = 0.15`**: Umbral mínimo para reportar la clasificación de especie de SpeciesNet.
-- **`VIDEO_FPS_SAMPLING = 2.0`**: Cantidad de frames analizados por segundo de video (ej. `1.0` es ideal para CPU, `5.0` para mayor precisión de movimiento).
-- **`SPECIESNET_MODEL_NAME`**: Identificador del clasificador en Kaggle Hub (por defecto: `kaggle:google/speciesnet/pyTorch/v4.0.2a/1`).
+Va con `--workers 1`: cada worker cargaría su propia copia de los modelos (~1,5 GB).
 
 ---
 

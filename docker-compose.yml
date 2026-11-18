@@ -1,60 +1,32 @@
+# IA de la web, sola (HU-IA-06). Para levantarla junto al back: deploy/docker-compose.example.yml.
+#
+#   1. Preparar los modelos (una vez; ~505 MB, verificados por sha256):
+#        docker compose run --rm ia python tools/fetch_models.py
+#   2. Levantar:
+#        docker compose up -d
+#        curl http://localhost:8001/api/v1/health
+#
+# AI_API_KEY: la misma que usa el back (SEC-05). Sin ella y con ENVIRONMENT=production, la IA no arranca.
 services:
-  wwf-api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runtime
-    container_name: wwf-wildlife-api
-    image: wwf-wildlife-detection:latest
-
-    ports:
-      - "8000:8000"
-
-    # ----------------------------------------------------------------
-    # Volúmenes persistentes: los modelos descargados y detecciones
-    # sobreviven reinicios del contenedor.
-    # ----------------------------------------------------------------
-    volumes:
-      # Pesos de MegaDetector y caché de PyTorch Hub / KaggleHub
-      - ./models:/app/models
-      # Recortes de animales detectados organizados por categoría
-      - ./detections:/app/detections
-      # Carpeta temporal de uploads (se limpia sola, pero mejor persistir)
-      - ./temp:/app/temp
-
-    # ----------------------------------------------------------------
-    # Variables de entorno (override del Dockerfile)
-    # ----------------------------------------------------------------
+  ia:
+    build: .
+    image: wwm-ia:latest
     environment:
-      - PYTHONUNBUFFERED=1
-      - TORCH_HOME=/app/models/torch_hub
-      - KAGGLE_CACHE_DIR=/app/models/kaggle_cache
-
-    # ----------------------------------------------------------------
-    # Recursos: Importante para evitar OOM con PyTorch
-    # Ajusta según el hardware del servidor de producción.
-    # ----------------------------------------------------------------
-    deploy:
-      resources:
-        limits:
-          memory: 6G        # SpeciesNet + MegaDetector necesitan ~4-5GB en CPU
-        reservations:
-          memory: 2G
-
-    # Reinicio automático salvo que el usuario detenga el contenedor
+      AI_API_KEY: ${AI_API_KEY:-dev-key}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      APP_VERSION: ${APP_VERSION:-dev}
+      INFERENCE_QUEUE_SIZE: ${INFERENCE_QUEUE_SIZE:-2}
+      PROCESS_TIMEOUT_SECONDS: ${PROCESS_TIMEOUT_SECONDS:-150}
+      MAX_FILE_MB: ${MAX_FILE_MB:-300}
+      MAX_VIDEO_SECONDS: ${MAX_VIDEO_SECONDS:-15}
+    volumes:
+      - models:/models
+    # Desarrollo: publicado en el 8001. En producción NO se publica (IA-31): ver deploy/docker-compose.example.yml.
+    ports:
+      - "8001:8001"
+    mem_limit: 6g # MegaDetector + SpeciesNet en CPU usan ~1,5 GB; el margen es para los picos de video
     restart: unless-stopped
 
-    # Healthcheck: espera 2 minutos para que los modelos se descarguen y carguen
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
-      interval: 30s
-      timeout: 10s
-      start_period: 120s
-      retries: 5
-
-    # Log rotation para evitar que los logs de inferencia llenen el disco
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "50m"
-        max-file: "3"
+volumes:
+  models:
